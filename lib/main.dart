@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 
 import 'screens/trek_list_screen.dart';
 
-void main() {
+void main() async {
+  // ✅ Initialisation obligatoire pour Flutter
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ Initialisation de sqflite_ffi pour desktop (Windows/macOS/Linux)
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
   runApp(const LesBaroudeursApp());
 }
 
@@ -27,6 +39,9 @@ class LesBaroudeursApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
+      locale: const Locale('fr'), // ✅ Force le français
+      supportedLocales: const [Locale('fr'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: const TrekListScreen(),
     );
   }
