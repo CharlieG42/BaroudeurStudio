@@ -140,14 +140,8 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
   }
 
   String _formatDateRange() {
-    try {
-      final debut = DateTime.parse(_trek.dateDebut);
-      final fin = DateTime.parse(_trek.dateFin);
-      final fmt = DateFormat('dd/MM/yyyy');
-      return '${fmt.format(debut)} → ${fmt.format(fin)}';
-    } catch (_) {
-      return '${_trek.dateDebut} → ${_trek.dateFin}';
-    }
+    final fmt = DateFormat('dd/MM/yyyy');
+    return '${fmt.format(_trek.dateDebut)} → ${fmt.format(_trek.dateFin)}';
   }
 
   @override
