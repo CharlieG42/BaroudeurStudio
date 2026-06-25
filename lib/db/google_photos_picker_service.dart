@@ -41,12 +41,12 @@ class GooglePhotosPickerService {
   static const _sessionsBaseUrl = 'https://photospicker.googleapis.com/v1/sessions';
   static const _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   bool _initialized = false;
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
-    await _googleSignIn.initialize(
+    await _googleSignIn.signIn(
       clientId: GooglePhotosConfig.androidClientId,
       serverClientId: GooglePhotosConfig.webServerClientId,
     );
@@ -61,11 +61,11 @@ class GooglePhotosPickerService {
 
     const scopes = [GooglePhotosConfig.scope];
 
-    GoogleSignInAccount? account = await _googleSignIn.attemptLightweightAuthentication();
-    account ??= await _googleSignIn.authenticate();
+    GoogleSignInAccount? account = await _googleSignIn.signInSilently();
+    account ??= await _googleSignIn.signIn();
 
-    final authorization = await account.authorizationClient.authorizationForScopes(scopes) ??
-        await account.authorizationClient.authorizeScopes(scopes);
+    final authorization = await account.authenticationClient.authorizationForScopes(scopes) ??
+        await account.authenticationClient.authorizeScopes(scopes);
 
     return authorization.accessToken;
   }
