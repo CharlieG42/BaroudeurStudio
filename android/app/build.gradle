@@ -4,6 +4,13 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Load keystore properties from key.properties file
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("android/key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.baroudeurs.studio"
     compileSdkVersion flutter.compileSdkVersion
@@ -32,10 +39,10 @@ android {
 
     signingConfigs {
         release {
-            keyAlias System.getenv('KEY_ALIAS') ?: project.hasProperty('keyAlias') ? keyAlias : 'releasekey'
-            keyPassword System.getenv('KEY_PASSWORD') ?: project.hasProperty('keyPassword') ? keyPassword : System.getenv('KEY_STORE_PASSWORD') ?: project.hasProperty('storePassword') ? storePassword : 'changeit'
-            storeFile file(System.getenv('STORE_FILE') ?: project.hasProperty('storeFile') ? storeFile : '../app/releasekey.jks')
-            storePassword System.getenv('STORE_PASSWORD') ?: project.hasProperty('storePassword') ? storePassword : 'changeit'
+            keyAlias keystoreProperties['keyAlias'] ?: 'releasekey'
+            keyPassword keystoreProperties['keyPassword'] ?: 'changeit'
+            storeFile file(keystoreProperties['storeFile'] ?: 'app/releasekey.jks')
+            storePassword keystoreProperties['storePassword'] ?: 'changeit'
         }
     }
 
