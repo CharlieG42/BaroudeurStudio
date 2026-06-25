@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'screens/trek_list_screen.dart';
 
@@ -10,7 +11,6 @@ void main() async {
 
   // ✅ Initialisation de sqflite_ffi pour desktop (Windows/macOS/Linux)
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    import 'package:sqflite_common_ffi/sqflite_ffi.dart';
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
