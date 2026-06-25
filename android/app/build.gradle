@@ -30,9 +30,18 @@ android {
         versionName flutterVersionName
     }
 
+    signingConfigs {
+        release {
+            keyAlias System.getenv('KEY_ALIAS') ?: project.hasProperty('keyAlias') ? keyAlias : 'releasekey'
+            keyPassword System.getenv('KEY_PASSWORD') ?: project.hasProperty('keyPassword') ? keyPassword : System.getenv('KEY_STORE_PASSWORD') ?: project.hasProperty('storePassword') ? storePassword : 'changeit'
+            storeFile file(System.getenv('STORE_FILE') ?: project.hasProperty('storeFile') ? storeFile : '../app/releasekey.jks')
+            storePassword System.getenv('STORE_PASSWORD') ?: project.hasProperty('storePassword') ? storePassword : 'changeit'
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 }
