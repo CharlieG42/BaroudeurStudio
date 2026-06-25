@@ -10,9 +10,9 @@ import '../db/google_photos_picker_service.dart';
 import '../db/media_storage_service.dart';
 import '../models/media.dart';
 
-/// Galerie de médias (photos pour l'instant) pour un jour de trek.
-/// Permet d'ajouter (via file picker), visualiser en plein écran,
-/// légender, et supprimer des médias.
+/// Galerie de medias (photos pour l'instant) pour un jour de trek.
+/// Permet d'ajouter (via file picker), visualiser en plein ecran,
+/// legender, et supprimer des medias.
 class MediaGallery extends StatefulWidget {
   final int jourId;
 
@@ -45,18 +45,18 @@ class _MediaGalleryState extends State<MediaGallery> {
     });
   }
 
-  /// Demande à l'utilisateur s'il veut importer en taille originale
-  /// ou compressée. Retourne true pour "compressée", false pour
-  /// "originale", ou null si l'utilisateur annule l'import.
+  /// Demande a l'utilisateur s'il veut importer en taille originale
+  /// ou compressee. Retourne true pour compressee, false pour
+  /// originale, ou null si l'utilisateur annule l'import.
   Future<bool?> _askCompressionChoice() async {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Qualité d\'import'),
+        title: const Text('Qualite d import'),
         content: const Text(
-          'Importer les photos en taille originale, ou compressées '
-          '(format réduit, qualité suffisante pour l\'impression et '
-          'l\'IA, mais beaucoup plus léger sur le disque) ?',
+          'Importer les photos en taille originale, ou compressee '
+          '(format reduit, qualite suffisante pour l impression et '
+          'l IA, mais beaucoup plus leger sur le disque) ?',
         ),
         actions: [
           TextButton(
@@ -69,7 +69,7 @@ class _MediaGalleryState extends State<MediaGallery> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Compressée'),
+            child: const Text('Compressee'),
           ),
         ],
       ),
@@ -85,7 +85,7 @@ class _MediaGalleryState extends State<MediaGallery> {
     if (result == null || result.files.isEmpty) return;
 
     final compress = await _askCompressionChoice();
-    if (compress == null) return; // utilisateur a annulé
+    if (compress == null) return;
 
     setState(() => _importing = true);
 
@@ -112,7 +112,7 @@ class _MediaGalleryState extends State<MediaGallery> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur lors de l\'import de ${file.name} : $e')),
+            SnackBar(content: Text('Erreur lors de l import de ${file.name} : $e')),
           );
         }
       }
@@ -122,13 +122,10 @@ class _MediaGalleryState extends State<MediaGallery> {
     _loadMedias();
   }
 
-  /// Lance le flux Google Photos Picker : ouvre le sélecteur dans le
-  /// navigateur, attend la sélection, télécharge chaque média choisi
-  /// vers un fichier temporaire, puis le fait passer par le service de
-  /// stockage habituel (avec le même choix taille originale/compressée).
+  /// Lance le flux Google Photos Picker
   Future<void> _importFromGooglePhotos() async {
     final compress = await _askCompressionChoice();
-    if (compress == null) return; // utilisateur a annulé
+    if (compress == null) return;
 
     setState(() => _importing = true);
 
@@ -142,8 +139,8 @@ class _MediaGalleryState extends State<MediaGallery> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
-                  'Sélectionne tes photos dans Google Photos, puis reviens '
-                  'dans l\'app — l\'import continuera automatiquement.',
+                  'Selectionne tes photos dans Google Photos, puis reviens '
+                  'dans l app - l import continuera automatiquement.',
                 ),
                 duration: Duration(seconds: 6),
               ),
@@ -152,7 +149,7 @@ class _MediaGalleryState extends State<MediaGallery> {
           final uri = Uri.parse(pickerUri);
           final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (!launched) {
-            throw Exception('Impossible d\'ouvrir le sélecteur Google Photos.');
+            throw Exception('Impossible d ouvrir le selecteur Google Photos.');
           }
         },
       );
@@ -160,15 +157,12 @@ class _MediaGalleryState extends State<MediaGallery> {
       if (pickedMedia.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucune photo sélectionnée.')),
+            const SnackBar(content: Text('Aucune photo selectionnee.')),
           );
         }
         return;
       }
 
-      // On récupère un token une seule fois pour télécharger tous les
-      // fichiers sélectionnés (évite de re-déclencher l'auth à chaque
-      // photo).
       accessTokenForDownload = await _googlePhotosService.getCurrentAccessToken();
 
       for (final media in pickedMedia) {
@@ -178,9 +172,6 @@ class _MediaGalleryState extends State<MediaGallery> {
             accessToken: accessTokenForDownload,
           );
 
-          // Écrit les octets téléchargés dans un fichier temporaire, pour
-          // pouvoir réutiliser le service de stockage existant (qui
-          // attend un chemin de fichier source, pas des octets bruts).
           final tempPath = p.join(tempDir.path, media.filename);
           final tempFile = File(tempPath);
           await tempFile.writeAsBytes(bytes);
@@ -201,14 +192,13 @@ class _MediaGalleryState extends State<MediaGallery> {
 
           await DatabaseHelper.instance.insertMedia(newMedia);
 
-          // Nettoyage du fichier temporaire (best-effort).
           try {
             await tempFile.delete();
           } catch (_) {}
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erreur lors de l\'import de ${media.filename} : $e')),
+              SnackBar(content: Text('Erreur lors de l import de ${media.filename} : $e')),
             );
           }
         }
@@ -261,7 +251,7 @@ class _MediaGalleryState extends State<MediaGallery> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Légende de la photo'),
+        title: const Text('Legende de la photo'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -353,7 +343,7 @@ class _MediaGalleryState extends State<MediaGallery> {
                     children: [
                       Icon(Icons.folder_open),
                       SizedBox(width: 8),
-                      Text('Depuis l\'appareil'),
+                      Text('Depuis l appareil'),
                     ],
                   ),
                 ),
@@ -398,7 +388,7 @@ class _MediaGalleryState extends State<MediaGallery> {
             ),
             child: const Center(
               child: Text(
-                'Aucune photo pour ce jour.\nClique sur "Ajouter" pour importer des photos.',
+                'Aucune photo pour ce jour.\nClique sur Ajouter pour importer des photos.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
               ),
@@ -441,7 +431,7 @@ class _MediaGalleryState extends State<MediaGallery> {
                         child: Container(
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(0.6)
+                            color: Colors.black.withValues(0.6),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.close, color: Colors.white, size: 16),
