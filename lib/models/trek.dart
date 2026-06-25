@@ -1,8 +1,8 @@
 class Trek {
   final int? id;
   final String titre;
-  final DateTime dateDebut;  // ✅ Changé de String à DateTime
-  final DateTime dateFin;    // ✅ Changé de String à DateTime
+  final String dateDebut;
+  final String dateFin;
   final String region;
   final String pays;
   final double? distanceKm;
@@ -27,8 +27,8 @@ class Trek {
     return {
       'id': id,
       'titre': titre,
-      'date_debut': dateDebut.toIso8601String(),  // ✅ Conversion en String pour la DB
-      'date_fin': dateFin.toIso8601String(),
+      'date_debut': dateDebut,
+      'date_fin': dateFin,
       'region': region,
       'pays': pays,
       'distance_km': distanceKm,
@@ -42,8 +42,8 @@ class Trek {
     return Trek(
       id: map['id'] as int?,
       titre: map['titre'] as String,
-      dateDebut: DateTime.parse(map['date_debut'] as String),  // ✅ Conversion de String à DateTime
-      dateFin: DateTime.parse(map['date_fin'] as String),
+      dateDebut: map['date_debut'] as String,
+      dateFin: map['date_fin'] as String,
       region: map['region'] as String,
       pays: map['pays'] as String,
       distanceKm: (map['distance_km'] as num?)?.toDouble(),
@@ -61,8 +61,8 @@ class Trek {
   Trek copyWith({
     int? id,
     String? titre,
-    DateTime? dateDebut,
-    DateTime? dateFin,
+    String? dateDebut,
+    String? dateFin,
     String? region,
     String? pays,
     double? distanceKm,
