@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:9.0.1'
+        classpath 'com.android.tools.build:gradle:8.4.0'
     }
 }
 
@@ -18,7 +18,7 @@ allprojects {
 rootProject.buildDir = 'build'
 subprojects {
     afterEvaluate { subproject ->
-        if (subproject.plugins.hasPlugin('android') || subproject.plugins.hasPlugin('android-library')) {
+        if (subproject.plugins.hasPlugin('android') || subplugin.plugins.hasPlugin('android-library')) {
             android {
                 compileSdkVersion 34
                 compileOptions {
