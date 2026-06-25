@@ -198,14 +198,13 @@ class _JourFormScreenState extends State<JourFormScreen> {
   Future<void> _save({bool andClose = true, bool showSnackbar = true}) async {
     if (!_formKey.currentState!.validate()) return;
 
-    final isoFmt = DateFormat('yyyy-MM-dd');
     final date = _date ?? DateTime.now();
 
     final jour = JourTrek(
       id: _savedJourId ?? widget.jour?.id,
       trekId: widget.trekId,
       numeroJour: int.tryParse(_numeroCtrl.text.trim()) ?? 1,
-      date: isoFmt.format(date),
+      date: DateFormat('yyyy-MM-dd').format(date),
       lieuDepart: _lieuDepartCtrl.text.trim(),
       lieuArrivee: _lieuArriveeCtrl.text.trim(),
       distanceKm: _distanceCtrl.text.trim().isEmpty
