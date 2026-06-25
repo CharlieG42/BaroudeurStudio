@@ -102,13 +102,11 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
       return;
     }
 
-    final isoFmt = DateFormat('yyyy-MM-dd');
-
     final trek = Trek(
       id: widget.trek?.id,
       titre: _titreCtrl.text.trim(),
-      dateDebut: isoFmt.format(_dateDebut!),
-      dateFin: isoFmt.format(_dateFin!),
+      dateDebut: _dateDebut!,
+      dateFin: _dateFin!,
       region: _regionCtrl.text.trim(),
       pays: _paysCtrl.text.trim(),
       distanceKm: _distanceCtrl.text.trim().isEmpty
@@ -164,7 +162,7 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today),
-                    label: Text('Début: ${_displayDate(_dateDebut)}'),
+                    label: Text('Debut: ${_displayDate(_dateDebut)}'),
                     onPressed: () => _pickDate(isDebut: true),
                   ),
                 ),
