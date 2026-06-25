@@ -89,7 +89,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
         builder: (_) => JourFormScreen(
           trekId: _trek.id!,
           suggestedNumero: nextNumero,
-          trekDateDebut: _trek.dateDebut,
+          trekDateDebut: DateFormat('yyyy-MM-dd').format(DateTime.parse(_trek.dateDebut)),
         ),
       ),
     );
@@ -105,7 +105,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
         builder: (_) => JourFormScreen(
           trekId: _trek.id!,
           jour: jour,
-          trekDateDebut: _trek.dateDebut,
+          trekDateDebut: DateFormat('yyyy-MM-dd').format(DateTime.parse(_trek.dateDebut)),
         ),
       ),
     );
@@ -141,7 +141,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
 
   String _formatDateRange() {
     final fmt = DateFormat('dd/MM/yyyy');
-    return '${fmt.format(_trek.dateDebut)} → ${fmt.format(_trek.dateFin)}';
+    return '${fmt.format(DateTime.parse(_trek.dateDebut))} → ${fmt.format(DateTime.parse(_trek.dateFin))}';
   }
 
   @override
