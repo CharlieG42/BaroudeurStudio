@@ -8,13 +8,13 @@ import '../models/media.dart';
 
 /// Gère la copie physique des fichiers médias dans un dossier dédié
 /// de l'application (sous-dossier "media" du dossier Documents),
-/// organisé par jour : media/jour_<jourId>/<uuid>.<ext>
+/// organisé par jour : media/jour_[jourId]/[uuid].[ext]
 class MediaStorageService {
   static const _uuid = Uuid();
 
   // Réglages de compression. Réduction de la plus longue dimension à
   // 1920px et qualité JPEG 80% : largement suffisant pour de l'impression
-  // et pour servir de base à des illustrations IA, tout en réduisant
+  // et pour servir de base pour des illustrations IA, tout en reduisant
   // fortement le poids du fichier (souvent -80 à -90% vs original).
   static const int _maxDimension = 1920;
   static const int _jpegQuality = 80;
@@ -32,10 +32,10 @@ class MediaStorageService {
   /// Copie un fichier source vers le dossier géré par l'app, pour un jour
   /// donné, et retourne le chemin absolu du fichier copié.
   ///
-  /// Si [compress] est true et que le fichier est une photo, l'image est
-  /// redimensionnée/recompressée avant d'être enregistrée. Sinon (ou si la
-  /// compression échoue, ou si le fichier n'est pas une photo), le fichier
-  /// original est copié tel quel.
+  /// Si compress est true et que le fichier est une photo, l image est
+  /// redimensionnée/recompressée avant de etre enregistrée. Sinon (ou si la
+  /// compression échoue, ou si le fichier nest pas une photo), le fichier
+  /// original est copie tel quel.
   Future<String> copyFileForJour({
     required int jourId,
     required String sourcePath,
@@ -102,7 +102,7 @@ class MediaStorageService {
     final ext = p.extension(filePath).toLowerCase();
     // Formats gérés de façon fiable par flutter_image_compress sur
     // Android/Windows/macOS. HEIC est volontairement exclu : support
-    // inégal selon plateforme, on préfère copier l'original dans ce cas.
+    // inegal selon plateforme, on préfère copier l'original dans ce cas.
     const supported = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'};
     return supported.contains(ext);
   }
