@@ -2,14 +2,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/trek.dart';
 import '../models/jour_trek.dart';
 import '../models/media.dart';
 
-/// Couche d'accès à la base de données SQLite.
+/// Couche d'acces a la base de donnees SQLite.
 /// Fonctionne sur Android/iOS (sqflite natif) et sur macOS/Windows/Linux
 /// (sqflite_common_ffi, qui s'appuie sur sqlite3 natif).
 class DatabaseHelper {
@@ -100,9 +99,9 @@ class DatabaseHelper {
     }
   }
 
-  /// Ajoute une colonne à une table existante si elle n'existe pas déjà.
-  /// SQLite ne supporte pas "ALTER TABLE ... ADD COLUMN IF NOT EXISTS",
-  /// donc on vérifie manuellement via PRAGMA table_info avant d'ajouter.
+  /// Ajoute une colonne a une table existante si elle n'existe pas deja.
+  /// SQLite ne supporte pas ALTER TABLE ... ADD COLUMN IF NOT EXISTS,
+  /// donc on verifie manuellement via PRAGMA table_info avant d'ajouter.
   Future<void> _addColumnIfMissing(
     Database db,
     String table,
@@ -131,7 +130,7 @@ class DatabaseHelper {
     ''');
   }
 
-  // ----------------- TREKS -----------------
+  // TREKS
 
   Future<int> insertTrek(Trek trek) async {
     final db = await database;
@@ -163,12 +162,11 @@ class DatabaseHelper {
 
   Future<int> deleteTrek(int id) async {
     final db = await database;
-    // Supprime aussi les jours associés (et leurs médias, via cascade)
     await db.delete('jours', where: 'trek_id = ?', whereArgs: [id]);
     return db.delete('treks', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ----------------- JOURS -----------------
+  // JOURS
 
   Future<int> insertJour(JourTrek jour) async {
     final db = await database;
@@ -201,7 +199,7 @@ class DatabaseHelper {
     return db.delete('jours', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ----------------- MEDIAS -----------------
+  // MEDIAS
 
   Future<int> insertMedia(Media media) async {
     final db = await database;
