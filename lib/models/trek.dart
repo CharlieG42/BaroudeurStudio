@@ -55,7 +55,9 @@ class Trek {
 
   // ✅ Calcul de la durée en jours
   int get dureeJours {
-    return dateFin.difference(dateDebut).inDays + 1;
+    final debut = DateTime.parse(dateDebut);
+    final fin = DateTime.parse(dateFin);
+    return fin.difference(debut).inDays + 1;
   }
 
   Trek copyWith({
