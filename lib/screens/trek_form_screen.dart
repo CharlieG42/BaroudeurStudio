@@ -105,8 +105,8 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
     final trek = Trek(
       id: widget.trek?.id,
       titre: _titreCtrl.text.trim(),
-      dateDebut: _dateDebut!,
-      dateFin: _dateFin!,
+      dateDebut: DateFormat('yyyy-MM-dd').format(_dateDebut!),
+      dateFin: DateFormat('yyyy-MM-dd').format(_dateFin!),
       region: _regionCtrl.text.trim(),
       pays: _paysCtrl.text.trim(),
       distanceKm: _distanceCtrl.text.trim().isEmpty
