@@ -64,8 +64,10 @@ class GooglePhotosPickerService {
     GoogleSignInAccount? account = await _googleSignIn.signInSilently();
     account ??= await _googleSignIn.signIn();
 
-    final authorization = await account.authenticationClient.authorizationForScopes(scopes) ??
-        await account.authenticationClient.authorizeScopes(scopes);
+    final authClient = account.authenticationClient;
+    if (authClient == null) throw Exception("Authentication client not available");
+    final authorization = await authClient.authorizationForScopes(scopes) ??
+        await authClient.authorizeScopes(scopes);
 
     return authorization.accessToken;
   }
