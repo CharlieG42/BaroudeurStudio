@@ -31,7 +31,7 @@ dependencies:
   flutter_image_compress: ^2.3.0
 
   # Google Photos (Picker API)
-  google_sign_in: ^6.1.5
+  google_sign_in: ^6.2.1
   http: ^1.2.2
   url_launcher: ^6.3.0
 
