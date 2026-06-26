@@ -44,7 +44,6 @@ class GooglePhotosPickerService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: GooglePhotosConfig.androidClientId,
     serverClientId: GooglePhotosConfig.webServerClientId,
-    scopes: [GooglePhotosConfig.scope],
   );
 
   /// Parse une durée au format Google ("5s", "300s") en secondes entières.
@@ -55,33 +54,51 @@ class GooglePhotosPickerService {
     return double.tryParse(match.group(1)!)?.round();
   }
 
+  /// Échange un code d'autorisation contre un access token.
+  Future<String> _exchangeCodeForToken(String authCode) async {
+    final response = await http.post(
+      Uri.parse('https://oauth2.googleapis.com/token'),
+      body: {
+        'code': authCode,
+        'client_id': GooglePhotosConfig.androidClientId,
+        'client_secret': '', // Non utilisé pour les clients Android
+        'redirect_uri': '', // Non utilisé pour les clients Android
+        'grant_type': 'authorization_code',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Échec de l\'échange du code d\'autorisation (code ${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['access_token'] as String;
+  }
+
   /// Connecte l'utilisateur à son compte Google (si pas déjà connecté) et
   /// retourne un access token valide pour le scope Picker API.
   /// Lève une exception si l'utilisateur annule la connexion.
   Future<String> _getAccessToken() async {
-    // Vérifie si l'utilisateur est déjà connecté
-    if (await _googleSignIn.isSignedIn()) {
-      final account = await _googleSignIn.signInSilently();
-      if (account != null) {
-        final auth = await account.authentication;
-        return auth.accessToken ?? '';
+    // Essaye de restaurer une session existante
+    GoogleSignInAccount? account = await _googleSignIn.signInSilently();
+    
+    if (account == null) {
+      // Si pas de session, demande une authentification
+      account = await _googleSignIn.signIn();
+      if (account == null) {
+        throw Exception("User cancelled sign-in");
       }
     }
 
-    // Si pas connecté, demande une authentification
-    final account = await _googleSignIn.signIn();
-    if (account == null) {
-      throw Exception("User cancelled sign-in");
-    }
-
-    final auth = await account.authentication;
-    final accessToken = auth.accessToken;
-    
-    if (accessToken == null || accessToken.isEmpty) {
-      throw Exception("Failed to obtain access token");
+    // Obtient le code d'autorisation et échange-le contre un token
+    final authCode = account.serverAuthCode;
+    if (authCode == null) {
+      throw Exception("Failed to obtain authorization code");
     }
     
-    return accessToken;
+    return await _exchangeCodeForToken(authCode);
   }
 
   Map<String, String> _authHeaders(String accessToken) => {
