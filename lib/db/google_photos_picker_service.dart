@@ -38,8 +38,8 @@ class PickerCancelledException implements Exception {
 /// Google Photos Picker API : création de session, attente de la
 /// sélection utilisateur, récupération des médias choisis.
 class GooglePhotosPickerService {
-  static const _sessionsBaseUrl = 'https://photospicker.googleapis.com/v1/sessions';
-  static const _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
+  static const String _sessionsBaseUrl = 'https://photospicker.googleapis.com/v1/sessions';
+  static const String _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: GooglePhotosConfig.androidClientId,
@@ -51,6 +51,14 @@ class GooglePhotosPickerService {
     if (_initialized) return;
     await _googleSignIn.signIn();
     _initialized = true;
+  }
+
+  /// Parse une durée au format Google ("5s", "300s") en secondes entières.
+  static int? parseDurationSeconds(String? value) {
+    if (value == null) return null;
+    final match = RegExp(r'^(\d+(?:\.\d+)?)s$').firstMatch(value);
+    if (match == null) return null;
+    return double.tryParse(match.group(1)!)?.round();
   }
 
   /// Connecte l'utilisateur à son compte Google (si pas déjà connecté) et
@@ -104,17 +112,11 @@ class GooglePhotosPickerService {
   /// Interroge l'état de la session jusqu'à ce que l'utilisateur ait
   /// terminé sa sélection (mediaItemsSet == true), ou jusqu'au timeout.
   /// Suit les intervalles de polling recommandés par l'API.
-  ///
-  /// Un court délai initial est observé avant le premier appel, et les
-  /// erreurs réseau transitoires (fréquentes juste après le retour au
-  /// premier plan de l'app sur Android, lorsque la connectivité n'est
-  /// pas encore complètement rétablie) sont tolérées avec un nombre
-  /// limité de réessais, plutôt que de faire échouer tout le flux.
   Future<void> _pollUntilMediaItemsSet(String sessionId, String accessToken) async {
     final uri = Uri.parse('$_sessionsBaseUrl/$sessionId');
 
     // Laisse le temps à la connectivité réseau de se stabiliser après
-    // le retour de Chrome au premier plan, avant le tout premier appel.
+    // le retour de Chrome au premier plan.
     await Future.delayed(const Duration(seconds: 2));
 
     const maxConsecutiveNetworkErrors = 5;
@@ -132,8 +134,6 @@ class GooglePhotosPickerService {
             'Connexion réseau instable, impossible de contacter Google Photos : $e',
           );
         }
-        // Erreur réseau transitoire : on attend un peu et on réessaie,
-        // sans relancer toute la session.
         await Future.delayed(const Duration(seconds: 2));
         continue;
       }
@@ -150,11 +150,11 @@ class GooglePhotosPickerService {
       if (mediaItemsSet) return;
 
       final pollingConfig = data['pollingConfig'] as Map<String, dynamic>?;
-      final pollIntervalStr = pollingConfig?['pollInterval'] as String?; // ex: "5s"
+      final pollIntervalStr = pollingConfig?['pollInterval'] as String?;
       final timeoutStr = pollingConfig?['timeoutIn'] as String?;
 
-      final pollInterval = _parseDurationSeconds(pollIntervalStr) ?? 3;
-      final timeout = _parseDurationSeconds(timeoutStr) ?? 0;
+      final pollInterval = parseDurationSeconds(pollIntervalStr) ?? 3;
+      final timeout = parseDurationSeconds(timeoutStr) ?? 0;
 
       if (timeout <= 0) {
         throw PickerCancelledException(
@@ -164,14 +164,6 @@ class GooglePhotosPickerService {
 
       await Future.delayed(Duration(seconds: pollInterval));
     }
-  }
-
-  /// Parse une durée au format Google ("5s", "300s") en secondes entières.
-  int? _parseDurationSeconds(String? value) {
-    if (value == null) return null;
-    final match = RegExp(r'^(\d+(?:\.\d+)?)s$').firstMatch(value);
-    if (match == null) return null;
-    return double.tryParse(match.group(1)!)?.round();
   }
 
   /// Récupère la liste complète des médias sélectionnés par l'utilisateur
@@ -219,8 +211,7 @@ class GooglePhotosPickerService {
     return results;
   }
 
-  /// Supprime la session côté serveur (bonne pratique recommandée par
-  /// Google pour éviter d'accumuler des sessions inutilisées).
+  /// Supprime la session côté serveur.
   Future<void> _deleteSession(String sessionId, String accessToken) async {
     try {
       await http.delete(
@@ -228,19 +219,12 @@ class GooglePhotosPickerService {
         headers: _authHeaders(accessToken),
       );
     } catch (_) {
-      // best-effort : la suppression de session n'est pas critique
-      // pour l'utilisateur si elle échoue.
+      // best-effort
     }
   }
 
   /// Lance le flux complet : authentification, ouverture du sélecteur
-  /// Google Photos via [onPickerReady] (à qui on transmet l'URL à ouvrir
-  /// dans le navigateur), attente de la sélection, puis retour de la
-  /// liste des médias choisis.
-  ///
-  /// [onPickerReady] doit ouvrir l'URL reçue (ex: via url_launcher) et
-  /// peut être utilisé pour mettre à jour l'UI ("ouverture du sélecteur
-  /// Google Photos...").
+  /// Google Photos, attente de la sélection, puis retour des médias choisis.
   Future<List<GooglePickedMedia>> pickMedia({
     required Future<void> Function(String pickerUri) onPickerReady,
   }) async {
@@ -276,7 +260,6 @@ class GooglePhotosPickerService {
     return response.bodyBytes;
   }
 
-  /// Retourne le token d'accès courant, pour réutilisation lors du
-  /// téléchargement (évite de redemander une authentification).
+  /// Retourne le token d'accès courant.
   Future<String> getCurrentAccessToken() => _getAccessToken();
 }
