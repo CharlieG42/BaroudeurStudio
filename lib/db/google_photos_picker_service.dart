@@ -41,7 +41,7 @@ class GooglePhotosPickerService {
   static const String _sessionsBaseUrl = 'https://photospicker.googleapis.com/v1/sessions';
   static const String _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.configure(
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: GooglePhotosConfig.androidClientId,
     serverClientId: GooglePhotosConfig.webServerClientId,
     scopes: [GooglePhotosConfig.scope],
@@ -59,20 +59,23 @@ class GooglePhotosPickerService {
   /// retourne un access token valide pour le scope Picker API.
   /// Lève une exception si l'utilisateur annule la connexion.
   Future<String> _getAccessToken() async {
-    // Essaye de restaurer une session existante
-    GoogleSignInAccount? account = await _googleSignIn.restoreSignIn();
-    
-    if (account == null) {
-      // Si pas de session, demande une authentification interactive
-      account = await _googleSignIn.signInInteractively();
-      if (account == null) {
-        throw Exception("User cancelled sign-in");
+    // Vérifie si l'utilisateur est déjà connecté
+    if (await _googleSignIn.isSignedIn()) {
+      final account = await _googleSignIn.signInSilently();
+      if (account != null) {
+        final auth = await account.authentication;
+        return auth.accessToken ?? '';
       }
     }
 
-    // Obtient les tokens d'accès
-    final authHeaders = await account.authHeaders;
-    final accessToken = authHeaders['authorization']?.split(' ').last;
+    // Si pas connecté, demande une authentification
+    final account = await _googleSignIn.signIn();
+    if (account == null) {
+      throw Exception("User cancelled sign-in");
+    }
+
+    final auth = await account.authentication;
+    final accessToken = auth.accessToken;
     
     if (accessToken == null || accessToken.isEmpty) {
       throw Exception("Failed to obtain access token");
