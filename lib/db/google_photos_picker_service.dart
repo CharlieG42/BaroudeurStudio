@@ -61,14 +61,20 @@ class GooglePhotosPickerService {
 
     const scopes = [GooglePhotosConfig.scope];
 
-    GoogleSignInAccount? account = await _googleSignIn.signInSilently();
-    account ??= await _googleSignIn.signIn();
+    // Utilise l'API moderne de google_sign_in v7+
+    final authClient = await _googleSignIn.attemptLightweightAuthentication();
+    if (authClient == null) {
+      // Si pas de session existante, demande une authentification complète
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        throw Exception("User cancelled sign-in");
+      }
+      final authHeaders = await account.authHeaders;
+      return authHeaders['authorization']?.split(' ').last ?? '';
+    }
 
-    final authClient = account.authenticationClient;
-    if (authClient == null) throw Exception("Authentication client not available");
-    final authorization = await authClient.authorizationForScopes(scopes) ??
-        await authClient.authorizeScopes(scopes);
-
+    // Si authClient est disponible, utilise-le pour obtenir le token
+    final authorization = await authClient.authorizeScopes(scopes);
     return authorization.accessToken;
   }
 
