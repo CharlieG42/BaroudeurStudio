@@ -42,6 +42,7 @@ class GooglePhotosPickerService {
   static const String _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [GooglePhotosConfig.scope],
     clientId: GooglePhotosConfig.androidClientId,
     serverClientId: GooglePhotosConfig.webServerClientId,
   );
@@ -52,29 +53,6 @@ class GooglePhotosPickerService {
     final match = RegExp(r'^(\d+(?:\.\d+)?)s$').firstMatch(value);
     if (match == null) return null;
     return double.tryParse(match.group(1)!)?.round();
-  }
-
-  /// Échange un code d'autorisation contre un access token.
-  Future<String> _exchangeCodeForToken(String authCode) async {
-    final response = await http.post(
-      Uri.parse('https://oauth2.googleapis.com/token'),
-      body: {
-        'code': authCode,
-        'client_id': GooglePhotosConfig.androidClientId,
-        'client_secret': '', // Non utilisé pour les clients Android
-        'redirect_uri': '', // Non utilisé pour les clients Android
-        'grant_type': 'authorization_code',
-      },
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'Échec de l\'échange du code d\'autorisation (code ${response.statusCode}): ${response.body}',
-      );
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return data['access_token'] as String;
   }
 
   /// Connecte l'utilisateur à son compte Google (si pas déjà connecté) et
@@ -92,13 +70,15 @@ class GooglePhotosPickerService {
       }
     }
 
-    // Obtient le code d'autorisation et échange-le contre un token
-    final authCode = account.serverAuthCode;
-    if (authCode == null) {
-      throw Exception("Failed to obtain authorization code");
+    // Obtient le token d'accès directement depuis account.authentication
+    final auth = await account.authentication;
+    final accessToken = auth.accessToken;
+    
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception("Failed to obtain access token");
     }
     
-    return await _exchangeCodeForToken(authCode);
+    return accessToken;
   }
 
   Map<String, String> _authHeaders(String accessToken) => {
