@@ -41,17 +41,11 @@ class GooglePhotosPickerService {
   static const String _sessionsBaseUrl = 'https://photospicker.googleapis.com/v1/sessions';
   static const String _mediaItemsBaseUrl = 'https://photospicker.googleapis.com/v1/mediaItems';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
+  final GoogleSignIn _googleSignIn = GoogleSignIn.configure(
     clientId: GooglePhotosConfig.androidClientId,
     serverClientId: GooglePhotosConfig.webServerClientId,
+    scopes: [GooglePhotosConfig.scope],
   );
-  bool _initialized = false;
-
-  Future<void> _ensureInitialized() async {
-    if (_initialized) return;
-    await _googleSignIn.signIn();
-    _initialized = true;
-  }
 
   /// Parse une durée au format Google ("5s", "300s") en secondes entières.
   static int? parseDurationSeconds(String? value) {
@@ -65,25 +59,26 @@ class GooglePhotosPickerService {
   /// retourne un access token valide pour le scope Picker API.
   /// Lève une exception si l'utilisateur annule la connexion.
   Future<String> _getAccessToken() async {
-    await _ensureInitialized();
-
-    const scopes = [GooglePhotosConfig.scope];
-
-    // Utilise l'API moderne de google_sign_in v7+
-    final authClient = await _googleSignIn.attemptLightweightAuthentication();
-    if (authClient == null) {
-      // Si pas de session existante, demande une authentification complète
-      final account = await _googleSignIn.signIn();
+    // Essaye de restaurer une session existante
+    GoogleSignInAccount? account = await _googleSignIn.restoreSignIn();
+    
+    if (account == null) {
+      // Si pas de session, demande une authentification interactive
+      account = await _googleSignIn.signInInteractively();
       if (account == null) {
         throw Exception("User cancelled sign-in");
       }
-      final authHeaders = await account.authHeaders;
-      return authHeaders['authorization']?.split(' ').last ?? '';
     }
 
-    // Si authClient est disponible, utilise-le pour obtenir le token
-    final authorization = await authClient.authorizeScopes(scopes);
-    return authorization.accessToken;
+    // Obtient les tokens d'accès
+    final authHeaders = await account.authHeaders;
+    final accessToken = authHeaders['authorization']?.split(' ').last;
+    
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception("Failed to obtain access token");
+    }
+    
+    return accessToken;
   }
 
   Map<String, String> _authHeaders(String accessToken) => {
