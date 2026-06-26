@@ -28,7 +28,6 @@ class JourFormScreen extends StatefulWidget {
 
 class _JourFormScreenState extends State<JourFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _filePicker = FilePicker();
 
   late TextEditingController _numeroCtrl;
   late TextEditingController _lieuDepartCtrl;
@@ -127,7 +126,7 @@ class _JourFormScreenState extends State<JourFormScreen> {
   /// distance et dénivelé à partir de la trace, et pré-remplit les champs
   /// correspondants (que l'utilisateur peut ensuite modifier librement).
   Future<void> _importerGpx() async {
-    final result = await _filePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['gpx'],
     );
