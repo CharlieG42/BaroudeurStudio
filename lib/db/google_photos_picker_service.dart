@@ -37,6 +37,7 @@ class GooglePhotosPickerService {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [GooglePhotosConfig.scope],
+    signInOption: SignInOption.standard,
   );
 
   /// Parse une durée au format Google ("5s", "300s") en secondes.
