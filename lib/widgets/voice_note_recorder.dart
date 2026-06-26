@@ -23,11 +23,17 @@ class VoiceNoteRecorder extends StatefulWidget {
 }
 
 class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  late final stt.SpeechToText _speech;
 
   bool _speechAvailable = false;
   bool _isListening = false;
   String _statusMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = stt.SpeechToText();
+  }
 
   @override
   void dispose() {
