@@ -35,16 +35,22 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
+            keyAlias = keystoreProperties["keyAlias"] as? String ?: System.getenv("ANDROID_KEY_ALIAS") ?: "upload"
+            keyPassword = keystoreProperties["keyPassword"] as? String ?: System.getenv("ANDROID_KEY_PASSWORD") ?: "password"
+            storeFile = keystoreProperties["storeFile"]?.let { file(it) } ?: file("../upload-keystore.jks")
+            storePassword = keystoreProperties["storePassword"] as? String ?: System.getenv("ANDROID_STORE_PASSWORD") ?: "password"
+        }
+        getByName("debug") {
+            // Debug signing config - no keystore required
         }
     }
 
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
