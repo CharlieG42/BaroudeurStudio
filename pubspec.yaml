@@ -26,7 +26,7 @@ dependencies:
   intl: ^0.20.2
 
   # Médias
-  file_picker: ^8.0.0
+  file_picker: 10.3.10
   uuid: ^4.4.0
   flutter_image_compress: ^2.3.0
 
@@ -39,7 +39,6 @@ dependencies:
   gpx: ^2.3.0
 
   # Notes vocales
-  record: ^5.1.2
   speech_to_text: ^7.0.0
   permission_handler: ^11.3.1
 
