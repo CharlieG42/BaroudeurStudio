@@ -53,11 +53,16 @@ class Trek {
     );
   }
 
-  // ✅ Calcul de la durée en jours
+  // Calcul de la durée en jours avec gestion des erreurs
   int get dureeJours {
-    final debut = DateTime.parse(dateDebut);
-    final fin = DateTime.parse(dateFin);
-    return fin.difference(debut).inDays + 1;
+    try {
+      final debut = DateTime.parse(dateDebut);
+      final fin = DateTime.parse(dateFin);
+      return fin.difference(debut).inDays + 1;
+    } catch (e) {
+      // En cas d'erreur de parsing, retourner 1 jour par défaut
+      return 1;
+    }
   }
 
   Trek copyWith({
