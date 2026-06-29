@@ -30,6 +30,9 @@ dependencies:
   uuid: ^4.4.0
   flutter_image_compress: ^2.3.0
 
+  # Image manipulation for PDF
+  image: ^4.1.4
+
   # GPS / GPX
   gpx: ^2.3.0
 
