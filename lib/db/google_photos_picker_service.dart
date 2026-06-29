@@ -38,13 +38,12 @@ class GooglePhotosPickerService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [GooglePhotosConfig.scope],
     signInOption: SignInOption.standard,
-    clientId: GooglePhotosConfig.clientId,
   );
 
   /// Parse une durée au format Google ("5s", "300s") en secondes.
   static int? _parseDurationSeconds(String? value) {
     if (value == null) return null;
-    final match = RegExp(r'^(d+(?:.d+)?)s$').firstMatch(value);
+    final match = RegExp(r'^(\d+(?:.\d+)?)s$').firstMatch(value);
     if (match == null) return null;
     return double.tryParse(match.group(1)!)?.round();
   }
