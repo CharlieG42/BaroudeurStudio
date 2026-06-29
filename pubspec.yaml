@@ -1,2 +1,51 @@
+name: les_baroudeurs
+description: "Application Les Baroudeurs - Carnet de trek vers livre illustré"
+publish_to: 'none'
+version: 0.5.0
 
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Base de données locale
+  sqflite: ^2.3.3
+  sqflite_common_ffi: ^2.3.3
+  path_provider: ^2.1.6
+  path: ^1.9.0
+
+  # Gestion d'état simple
+  provider: ^6.1.5
+
+  # Dates
+  intl: ^0.20.2
+
+  # Médias (sélection locale de fichiers)
+  file_picker: 10.3.10
+  uuid: ^4.4.0
+  flutter_image_compress: ^2.3.0
+
+  # GPS / GPX
+  gpx: ^2.3.0
+
+  # Notes vocales
+  speech_to_text: ^7.0.0
+  permission_handler: ^11.3.1
+
+  # PDF Generation
+  pdf: ^3.10.0
+  printing: ^5.11.0
   share_plus: ^7.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
