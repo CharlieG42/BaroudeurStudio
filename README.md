@@ -1,7 +1,6 @@
 # Les Baroudeurs — MVP v0.5
 
-Treks + journal quotidien + photos (appareil ou Google Photos sur Android,
-taille originale/compressée) + import de trace GPX (calcul automatique
+Treks + journal quotidien + photos (appareil) + import de trace GPX (calcul automatique
 distance/dénivelé, modifiable) + notes vocales avec transcription
 automatique. Stockage SQLite + fichiers locaux. Toujours sans IA de
 rédaction, sans illustrations Ghibli, sans export pour le moment.
@@ -24,7 +23,7 @@ rédaction, sans illustrations Ghibli, sans export pour le moment.
    ```
    Corrige les éventuels soucis signalés (Xcode, Android SDK, etc.) avant de continuer.
 
-3. Récupérer les dépendances du projet — à faire **une fois**, depuis le dossier `les_baroudeurs/` :
+3. Récupérer les dépendances du projet — à faire **une fois**, depuis le dossier les_baroudeurs/ :
    ```bash
    cd les_baroudeurs
    flutter pub get
@@ -48,7 +47,7 @@ rédaction, sans illustrations Ghibli, sans export pour le moment.
    pour compiler les apps macOS/iOS).
 
 3. La base de données SQLite sera créée automatiquement dans le dossier
-   "Documents" de l'app (géré par `path_provider`), aucune config
+   "Documents" de l'app (géré par path_provider), aucune config
    supplémentaire nécessaire.
 
 ---
@@ -69,14 +68,14 @@ rédaction, sans illustrations Ghibli, sans export pour le moment.
    flutter run -d windows
    ```
 
-4. Comme pour macOS, `sqflite_common_ffi` gère la base SQLite via le moteur
-   natif `sqlite3` — rien à configurer manuellement.
+4. Comme pour macOS, sqflite_common_ffi gère la base SQLite via le moteur
+   natif sqlite3 — rien à configurer manuellement.
 
-> **Note sur la compression d'image** : le package `flutter_image_compress`
-> peut nécessiter une étape `flutter pub get` supplémentaire après ajout au
+> **Note sur la compression d'image** : le package flutter_image_compress
+> peut nécessiter une étape flutter pub get supplémentaire après ajout au
 > projet pour bien enregistrer son plugin Windows. Si tu obtiens une erreur
 > du type "Plugin flutter_image_compress not found" au build, relance
-> `flutter clean` puis `flutter pub get` avant de rebuilder.
+> flutter clean puis flutter pub get avant de rebuilder.
 
 ---
 
@@ -94,7 +93,7 @@ rédaction, sans illustrations Ghibli, sans export pour le moment.
    ```bash
    flutter run -d emulator-5554
    ```
-   (remplace `emulator-5554` par l'ID retourné par `flutter devices`)
+   (remplace emulator-5554 par l'ID retourné par flutter devices)
 
 ### Option B — Téléphone Android physique
 1. Activer le mode développeur sur le téléphone :
@@ -111,45 +110,14 @@ rédaction, sans illustrations Ghibli, sans export pour le moment.
    flutter run -d <id_du_telephone>
    ```
 
-Sur Android, `sqflite` utilise le moteur SQLite natif du système — aucune
+Sur Android, sqflite utilise le moteur SQLite natif du système — aucune
 configuration supplémentaire nécessaire.
-
-### Configuration requise pour l'import depuis Google Photos
-
-1. Crée le fichier `lib/config/google_photos_config.dart` en copiant
-   `lib/config/google_photos_config.example.dart` (ce premier fichier est
-   ignoré par Git, donc jamais committé).
-2. Renseigne `androidClientId` avec le Client ID OAuth de type "Android"
-   créé dans Google Cloud Console (déjà fait pour ce projet — la valeur
-   est dans le fichier exemple).
-3. Renseigne aussi `webServerClientId` avec le Client ID OAuth de type
-   **"Web application"** (pas Android !). C'est une exigence un peu
-   contre-intuitive de `google_sign_in` sur Android : même en se
-   connectant depuis le téléphone, l'API attend un `serverClientId` qui
-   doit être un Client ID de type Web. Sans lui, l'erreur
-   `serverClientId must be provided on Android` apparaît.
-4. Vérifie que dans Google Cloud Console :
-   - Le nom de package du client Android correspond bien à
-     `com.baroudeurs.studio`
-   - L'empreinte SHA-1 de ta clé de signature (debug, et plus tard
-     release) est bien renseignée
-   - L'API "Google Photos Picker API" est activée (APIs & Services >
-     Enabled APIs)
-5. Comme l'app reste en mode "Test" dans la console (usage personnel),
-   un écran "App non vérifiée" peut apparaître à la première connexion —
-   c'est normal, clique sur "Continuer" / "Avancé > Accéder à l'app".
-
-**Note** : l'import Google Photos n'est implémenté que pour Android dans
-cette version. Le client Desktop a été créé dans Google Cloud Console
-mais l'intégration Windows est mise en pause (le flux OAuth desktop pose
-des questions de sécurité spécifiques liées au stockage du secret client
-dans un binaire distribué — à reprendre plus tard si besoin).
 
 ### Configuration requise pour les notes vocales (transcription)
 
-Le package `speech_to_text` nécessite des permissions et déclarations
-Android spécifiques. Ouvre `android/app/src/main/AndroidManifest.xml` et
-ajoute, **avant** la balise `<application>` :
+Le package speech_to_text nécessite des permissions et déclarations
+Android spécifiques. Ouvre android/app/src/main/AndroidManifest.xml et
+ajoute, **avant** la balise <application> :
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -162,7 +130,7 @@ ajoute, **avant** la balise `<application>` :
 </queries>
 ```
 
-Sans le bloc `<queries>`, Android peut empêcher l'app de détecter les
+Sans le bloc <queries>, Android peut empêcher l'app de détecter les
 moteurs de reconnaissance vocale installés sur le téléphone (changement
 de comportement introduit par Android 11+).
 
@@ -171,8 +139,7 @@ de reconnaissance vocale du téléphone (Google, généralement), qui
 nécessite le plus souvent une connexion internet active pour de bons
 résultats. Un mode hors-ligne existe sur certains appareils Android mais
 dépend de packs de langue téléchargés séparément dans les paramètres
-système (Paramètres > Système > Langues > Reconnaissance vocale hors
-ligne).
+système.
 
 ---
 
@@ -182,19 +149,19 @@ ligne).
 ```bash
 flutter build macos
 ```
-→ produit `build/macos/Build/Products/Release/les_baroudeurs.app`
+→ produit build/macos/Build/Products/Release/les_baroudeurs.app
 
 ### Windows
 ```bash
 flutter build windows
 ```
-→ produit `build/windows/x64/runner/Release/` (dossier avec le .exe et ses DLLs)
+→ produit build/windows/x64/runner/Release/ (dossier avec le .exe et ses DLLs)
 
 ### Android (APK)
 ```bash
 flutter build apk --release
 ```
-→ produit `build/app/outputs/flutter-apk/app-release.apk`
+→ produit build/app/outputs/flutter-apk/app-release.apk
    Tu peux transférer cet APK sur un téléphone Android et l'installer
    directement (active "Sources inconnues" dans les paramètres si demandé).
 
@@ -210,11 +177,8 @@ flutter build apk --release
   difficultés, découvertes)
 - Modifier / supprimer un jour
 - **Ajouter des photos à un jour** (une fois le jour enregistré une première
-  fois), via le bouton "Ajouter" qui propose deux sources :
-  - **Depuis l'appareil** : explorateur de fichiers classique
-  - **Depuis Google Photos** (Android uniquement) : ouvre le sélecteur
-    Google Photos dans le navigateur/l'app, tu choisis tes photos
-    là-bas, puis l'import continue automatiquement dans Les Baroudeurs
+  fois), via le bouton "Ajouter" qui propose :
+  - **Depuis l'appareil** : explorateur de fichiers classique (file_picker)
   - Dans les deux cas : **choix entre taille originale et compressée**
     dans une boîte de dialogue, copie automatique dans le dossier de
     l'app, affichage en galerie, suppression
@@ -229,8 +193,7 @@ flutter build apk --release
 - Bouton "Fermer" (en haut à droite) : referme l'écran et revient au détail
   du trek
 - Les photos sont **copiées** (pas seulement référencées) dans :
-  `Documents/media/jour_<id>/<uuid>.<ext>`, qu'elles viennent de
-  l'appareil ou de Google Photos
+  Documents/media/jour_<id>/<uuid>.<ext>
 - Supprimer une photo dans l'app supprime aussi le fichier copié
 - **Compression** (si choisie) : redimensionnement à 1920px sur le plus
   grand côté, qualité JPEG 80%, sans métadonnées EXIF — réduction typique
@@ -238,11 +201,6 @@ flutter build apk --release
   et pour servir de base à la génération d'illustrations IA
 - Les formats HEIC ne sont pas compressés (copiés en taille originale,
   quel que soit le choix) en raison d'un support inégal selon plateforme
-- **Import Google Photos** : la première utilisation demande une
-  connexion à ton compte Google ; les suivantes seront plus rapides
-  (le token est réutilisé tant qu'il est valide). La sélection dans
-  Google Photos a un délai limité (quelques minutes) — si tu mets trop
-  de temps à choisir, il faudra relancer l'import.
 
 ## 6. Ce qui n'est PAS encore dans ce MVP
 
@@ -256,9 +214,9 @@ flutter build apk --release
 
 ## 7. Dépannage rapide
 
-- **Erreur liée à `sqflite_common_ffi` sur desktop** : vérifie que
-  `flutter pub get` a bien tourné après modification du `pubspec.yaml`.
-- **`flutter devices` ne montre rien** : relance `flutter doctor` pour voir
+- **Erreur liée à sqflite_common_ffi sur desktop** : vérifie que
+  flutter pub get a bien tourné après modification du pubspec.yaml.
+- flutter devices ne montre rien : relance flutter doctor pour voir
   ce qui manque (SDK Android, licences, etc.)
 - **Build Windows échoue** : assure-toi que Visual Studio (pas seulement
   VS Code) est installé avec le workload C++.
