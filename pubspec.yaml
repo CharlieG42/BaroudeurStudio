@@ -25,15 +25,10 @@ dependencies:
   # Dates
   intl: ^0.20.2
 
-  # Médias
+  # Médias (sélection locale de fichiers)
   file_picker: 10.3.10
   uuid: ^4.4.0
   flutter_image_compress: ^2.3.0
-
-  # Google Photos (Picker API)
-  google_sign_in: ^6.2.1
-  http: ^1.2.2
-  url_launcher: ^6.3.0
 
   # GPS / GPX
   gpx: ^2.3.0
