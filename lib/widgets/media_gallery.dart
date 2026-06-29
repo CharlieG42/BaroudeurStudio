@@ -1,12 +1,8 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../db/database_helper.dart';
-import '../db/google_photos_picker_service.dart';
 import '../db/media_storage_service.dart';
 import '../models/media.dart';
 
@@ -24,7 +20,6 @@ class MediaGallery extends StatefulWidget {
 
 class _MediaGalleryState extends State<MediaGallery> {
   final _storageService = MediaStorageService();
-  final _googlePhotosService = GooglePhotosPickerService();
 
   List<Media> _medias = [];
   bool _loading = true;
@@ -122,103 +117,6 @@ class _MediaGalleryState extends State<MediaGallery> {
     _loadMedias();
   }
 
-  /// Lance le flux Google Photos Picker
-  Future<void> _importFromGooglePhotos() async {
-    final compress = await _askCompressionChoice();
-    if (compress == null) return;
-
-    setState(() => _importing = true);
-
-    try {
-      final tempDir = await getTemporaryDirectory();
-      String? accessTokenForDownload;
-
-      final pickedMedia = await _googlePhotosService.pickMedia(
-        onPickerReady: (pickerUri) async {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Selectionne tes photos dans Google Photos, puis reviens '
-                  'dans l app - l import continuera automatiquement.',
-                ),
-                duration: Duration(seconds: 6),
-              ),
-            );
-          }
-          final uri = Uri.parse(pickerUri);
-          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-          if (!launched) {
-            throw Exception('Impossible d ouvrir le selecteur Google Photos.');
-          }
-        },
-      );
-
-      if (pickedMedia.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucune photo selectionnee.')),
-          );
-        }
-        return;
-      }
-
-      accessTokenForDownload = await _googlePhotosService.getCurrentAccessToken();
-
-      for (final media in pickedMedia) {
-        try {
-          final bytes = await _googlePhotosService.downloadMediaBytes(
-            media,
-            accessToken: accessTokenForDownload,
-          );
-
-          final tempPath = p.join(tempDir.path, media.filename);
-          final tempFile = File(tempPath);
-          await tempFile.writeAsBytes(bytes);
-
-          final copiedPath = await _storageService.copyFileForJour(
-            jourId: widget.jourId,
-            sourcePath: tempPath,
-            compress: compress,
-          );
-
-          final newMedia = Media(
-            jourId: widget.jourId,
-            type: _storageService.detectType(tempPath),
-            cheminFichier: copiedPath,
-            nomOriginal: media.filename,
-            dateAjout: DateTime.now().toIso8601String(),
-          );
-
-          await DatabaseHelper.instance.insertMedia(newMedia);
-
-          try {
-            await tempFile.delete();
-          } catch (_) {}
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erreur lors de l import de ${media.filename} : $e')),
-            );
-          }
-        }
-      }
-    } on PickerCancelledException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur Google Photos : $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _importing = false);
-      _loadMedias();
-    }
-  }
-
   Future<void> _deletePhoto(Media media) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -257,7 +155,7 @@ class _MediaGalleryState extends State<MediaGallery> {
           autofocus: true,
           maxLines: 2,
           decoration: const InputDecoration(
-            hintText: 'ex: Vue depuis le col, marmotte croisée...',
+            hintText: 'ex: Vue depuis le col, marmotte croisee...',
             border: OutlineInputBorder(),
           ),
         ),
@@ -327,51 +225,16 @@ class _MediaGalleryState extends State<MediaGallery> {
             if (_medias.isNotEmpty)
               Text('(${_medias.length})', style: const TextStyle(color: Colors.grey)),
             const Spacer(),
-            PopupMenuButton<String>(
-              enabled: !_importing,
-              onSelected: (value) {
-                if (value == 'files') {
-                  _addPhotos();
-                } else if (value == 'google_photos') {
-                  _importFromGooglePhotos();
-                }
-              },
-              itemBuilder: (ctx) => [
-                const PopupMenuItem(
-                  value: 'files',
-                  child: Row(
-                    children: [
-                      Icon(Icons.folder_open),
-                      SizedBox(width: 8),
-                      Text('Depuis l appareil'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'google_photos',
-                  child: Row(
-                    children: [
-                      Icon(Icons.cloud_download),
-                      SizedBox(width: 8),
-                      Text('Depuis Google Photos'),
-                    ],
-                  ),
-                ),
-              ],
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _importing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_photo_alternate),
-                  const SizedBox(width: 6),
-                  Text(_importing ? 'Import...' : 'Ajouter'),
-                ],
-              ),
+            ElevatedButton.icon(
+              onPressed: _importing ? null : _addPhotos,
+              icon: _importing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_photo_alternate),
+              label: Text(_importing ? 'Import...' : 'Ajouter'),
             ),
           ],
         ),
