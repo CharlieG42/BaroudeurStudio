@@ -20,7 +20,7 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "28.2.13676358"
 
-    lintOptions {
+    lint {
         checkReleaseBuilds = false
     }
 
