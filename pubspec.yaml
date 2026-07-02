@@ -30,7 +30,7 @@ dependencies:
   uuid: ^4.4.0
   flutter_image_compress: ^2.3.0
 
-  # Image manipulation for PDF
+  # Image manipulation for PDF/PPTX
   image: ^4.1.4
 
   # GPS / GPX
@@ -46,7 +46,7 @@ dependencies:
   share_plus: ^7.2.1
 
   # PPTX Generation (PowerPoint)
-  pptx: ^0.1.0
+  flutter_pptx: ^0.1.0
 
 dev_dependencies:
   flutter_test:
