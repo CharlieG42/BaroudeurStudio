@@ -1,0 +1,65 @@
+Export Features - Baroudeur Studio
+======================================
+
+Three export formats are now available:
+
+1. PDF Text Only
+   - Fast generation
+   - No memory issues
+   - All text and info, no images
+
+2. PDF With Images
+   - Background generation
+   - Uses isolate
+   - Configurable compression
+
+3. PowerPoint PPTX
+   - Editable format
+   - Ideal for manual adjustments
+   - Uses flutter_pptx package
+
+New Files:
+- lib/services/export_service.dart
+- lib/config/app_config.dart
+- lib/widgets/compression_settings_dialog.dart
+- lib/widgets/export_button_bar.dart
+
+Modified Files:
+- lib/widgets/export_pdf_button.dart
+- pubspec.yaml
+
+Usage:
+------
+final exportService = ExportService();
+
+// PDF Text Only
+final pdfFile = await exportService.exportTrekToPdfTextOnly(trek);
+
+// PDF With Images
+final pdfWithImages = await exportService.exportTrekToPdfWithImages(trek);
+
+// PowerPoint
+final pptxFile = await exportService.exportTrekToPptx(trek);
+
+Compression:
+------------
+AppConfig.compressionQuality = 80; // 0-100
+
+UI:
+--
+ExportPdfButton(trek: trek)
+ExportButtonBar(trek: trek)
+
+Dependencies:
+-------------
+flutter_pptx: ^0.1.0
+
+Technical Notes:
+----------------
+- Isolate: Pass data as parameters
+- initializeDateFormatting('fr') needed in isolate
+- DatabaseHelper not accessible from isolate
+
+Migration:
+----------
+Replace PdfExportService() with ExportService()
