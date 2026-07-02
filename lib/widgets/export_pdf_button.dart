@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/trek.dart';
-import '../services/pdf_export_service.dart';
+import '../services/export_service.dart';
 
-/// Bouton pour exporter un trek en PDF
-/// Offre 2 options : texte seulement ou avec images (en arrière-plan)
+/// Bouton pour exporter un trek dans différents formats
+/// Offre 3 options : PDF texte seulement, PDF avec images, PPTX (PowerPoint)
 class ExportPdfButton extends StatelessWidget {
   final Trek trek;
   final VoidCallback? onExportComplete;
@@ -21,7 +21,7 @@ class ExportPdfButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.picture_as_pdf),
-      tooltip: 'Exporter en PDF',
+      tooltip: 'Exporter le trek',
       onPressed: () => _showExportOptions(context),
     );
   }
@@ -37,26 +37,35 @@ class ExportPdfButton extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Exporter le trek en PDF',
+                'Exporter le trek',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Choisissez une option :',
+                'Choisissez un format :',
                 style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
               const SizedBox(height: 16),
+              // Option 1: PDF texte seulement
               ListTile(
                 leading: const Icon(Icons.text_snippet, color: Colors.blue),
-                title: const Text('Texte seulement'),
+                title: const Text('PDF - Texte seulement'),
                 subtitle: const Text('Rapide, sans images, pas de risque de mémoire'),
-                onTap: () => Navigator.pop(context, 'text'),
+                onTap: () => Navigator.pop(context, 'pdf_text'),
               ),
+              // Option 2: PDF avec images
               ListTile(
                 leading: const Icon(Icons.image, color: Colors.green),
-                title: const Text('Avec images'),
+                title: const Text('PDF - Avec images'),
                 subtitle: const Text('Complet avec photos, génération en arrière-plan'),
-                onTap: () => Navigator.pop(context, 'images'),
+                onTap: () => Navigator.pop(context, 'pdf_images'),
+              ),
+              // Option 3: PPTX (PowerPoint)
+              ListTile(
+                leading: const Icon(Icons.slideshow, color: Colors.purple),
+                title: const Text('PowerPoint (PPTX)'),
+                subtitle: const Text('Format modifiable, idéal pour les ajustements manuels'),
+                onTap: () => Navigator.pop(context, 'pptx'),
               ),
             ],
           ),
@@ -69,28 +78,31 @@ class ExportPdfButton extends StatelessWidget {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     try {
-      final pdfService = PdfExportService();
+      final exportService = ExportService();
+      File? exportFile;
       
-      if (result == 'text') {
-        // Export texte seulement
+      if (result == 'pdf_text') {
         scaffoldMessenger.showSnackBar(
           const SnackBar(content: Text('Génération du PDF (texte seulement)...')),
         );
-        
-        final pdfFile = await pdfService.exportTrekToPdfTextOnly(trek);
-        scaffoldMessenger.hideCurrentSnackBar();
-        
-        _showPdfResultDialog(context, pdfFile);
-      } else if (result == 'images') {
-        // Export avec images en arrière-plan
+        exportFile = await exportService.exportTrekToPdfTextOnly(trek);
+      } 
+      else if (result == 'pdf_images') {
         scaffoldMessenger.showSnackBar(
           const SnackBar(content: Text('Génération du PDF (avec images) en arrière-plan...')),
         );
-        
-        final pdfFile = await pdfService.exportTrekToPdfWithImages(trek);
+        exportFile = await exportService.exportTrekToPdfWithImages(trek);
+      } 
+      else if (result == 'pptx') {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Génération du PowerPoint...')),
+        );
+        exportFile = await exportService.exportTrekToPptx(trek);
+      }
+      
+      if (exportFile != null) {
         scaffoldMessenger.hideCurrentSnackBar();
-        
-        _showPdfResultDialog(context, pdfFile);
+        await _showExportResultDialog(context, exportFile);
       }
       
       onExportComplete?.call();
@@ -106,12 +118,15 @@ class ExportPdfButton extends StatelessWidget {
     }
   }
 
-  Future<void> _showPdfResultDialog(BuildContext context, File pdfFile) async {
+  Future<void> _showExportResultDialog(BuildContext context, File exportFile) async {
+    final fileName = exportFile.path.split('/').last;
+    final fileType = fileName.endsWith('.pdf') ? 'PDF' : 'PowerPoint';
+    
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('PDF généré !'),
-        content: Text('Fichier: ${pdfFile.path.split('/').last}'),
+        title: Text('$fileType généré !'),
+        content: Text('Fichier: $fileName'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -126,7 +141,7 @@ class ExportPdfButton extends StatelessWidget {
     );
 
     if (result == true) {
-      await Share.shareXFiles([XFile(pdfFile.path)]);
+      await Share.shareXFiles([XFile(exportFile.path)]);
     }
   }
 }
