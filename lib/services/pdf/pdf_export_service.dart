@@ -218,7 +218,7 @@ class PdfExportService {
                 PdfStyles.verticalSpace(20),
                 pw.Text(trek.titre, style: PdfStyles.subtitleStyle),
                 PdfStyles.verticalSpace(40),
-                pw.Text('Merci d\'avoir vecu cette aventure !', style: PdfStyles.bodyTextStyle),
+                pw.Text("Merci d'avoir vecu cette aventure !", style: PdfStyles.bodyTextStyle),
                 PdfStyles.verticalSpace(20),
                 pw.Text('Les Baroudeurs - ' + DateTime.now().year.toString(), style: PdfStyles.bodyTextStyle),
               ],
@@ -511,7 +511,7 @@ class PdfExportService {
                 ),
                 pw.SizedBox(height: 40),
                 pw.Text(
-                  'Merci d\'avoir vecu cette aventure !',
+                  "Merci d'avoir vecu cette aventure !",
                   style: const pw.TextStyle(fontSize: 14),
                 ),
                 pw.SizedBox(height: 20),
