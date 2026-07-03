@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../config/app_config.dart';
 
@@ -23,23 +22,23 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Paramètres de compression'),
+      title: const Text('Parametres de compression'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Qualité de compression des images:',
+            'Qualite de compression des images:',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Valeur recommandée: 70-80%',
+            'Valeur recommandee: 70-80%',
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
           Text(
-            'Qualité actuelle: $_currentQuality%',
+            'Qualite actuelle: $_currentQuality%',
             style: const TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 8),
@@ -61,7 +60,7 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
             children: [
               _buildQualityLabel('Faible', 0, Colors.red),
               _buildQualityLabel('Moyenne', 50, Colors.orange),
-              _buildQualityLabel('Élevée', 100, Colors.green),
+              _buildQualityLabel('Elevee', 100, Colors.green),
             ],
           ),
           const SizedBox(height: 16),
@@ -71,15 +70,15 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
           ),
           const SizedBox(height: 4),
           const Text(
-            '• 50%: Très compressé, fichiers petits',
+            '50%: Tres compresse, fichiers tres petits',
             style: TextStyle(fontSize: 12),
           ),
           const Text(
-            '• 70%: Bon compromis (recommandé)',
+            '70%: Bon compromis (recommande)',
             style: TextStyle(fontSize: 12),
           ),
           const Text(
-            '• 90%+: Qualité proche de l'original',
+            '90%+: Qualite proche de l original',
             style: TextStyle(fontSize: 12),
           ),
         ],
@@ -91,7 +90,7 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
         ),
         FilledButton(
           onPressed: () {
-            AppConfig.compressionQuality = _currentQuality;
+            AppConfig.setCompressionQuality(_currentQuality);
             Navigator.pop(context, _currentQuality);
           },
           child: const Text('Enregistrer'),
@@ -118,7 +117,7 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
           '$value%',
           style: TextStyle(
             fontSize: 10,
-            color: isSelected ? color : Colors.grey[600],
+            color: isSelected ? color : Colors.grey,
           ),
         ),
       ],
@@ -126,7 +125,7 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
   }
 }
 
-/// Bouton pour ouvrir les paramètres de compression
+/// Bouton pour ouvrir les parametres de compression
 class CompressionSettingsButton extends StatelessWidget {
   const CompressionSettingsButton({super.key});
 
@@ -134,7 +133,7 @@ class CompressionSettingsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.settings),
-      tooltip: 'Paramètres de compression',
+      tooltip: 'Parametres de compression',
       onPressed: () async {
         final newQuality = await showDialog<int>(
           context: context,
@@ -144,7 +143,7 @@ class CompressionSettingsButton extends StatelessWidget {
         if (newQuality != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Qualité de compression définie à $newQuality%'),
+              content: Text('Qualite de compression definie a $newQuality%'),
               duration: const Duration(seconds: 2),
             ),
           );
