@@ -180,13 +180,6 @@ class PdfExportService {
             ),
           ),
           PdfStyles.verticalSpace(15),
-          if (jour.hasPhotos) ...[
-            pw.Text(
-              'Photos: ' + jour.photoCount.toString() + ' photo(s) pour ce jour',
-              style: PdfStyles.italicTextStyle,
-            ),
-            PdfStyles.verticalSpace(10),
-          ],
           if (jour.resume.isNotEmpty) ...[
             pw.Text('Recit du jour:', style: PdfStyles.subtitleStyle.copyWith(fontSize: 16)),
             PdfStyles.verticalSpace(8),
@@ -196,7 +189,7 @@ class PdfExportService {
           pw.Table.fromTextArray(
             headers: ['', ''],
             data: [
-              ['Distance', jour.distanceKm?.toStringAsFixed(1) ?? 'N/A' + ' km'],
+              ['Distance', (jour.distanceKm?.toStringAsFixed(1) ?? 'N/A') + ' km'],
               ['Meteo', jour.meteo],
               ['Emotions', jour.emotions],
               ['Difficultes', jour.difficultes],
@@ -225,7 +218,7 @@ class PdfExportService {
                 PdfStyles.verticalSpace(20),
                 pw.Text(trek.titre, style: PdfStyles.subtitleStyle),
                 PdfStyles.verticalSpace(40),
-                pw.Text('Merci d'avoir vecu cette aventure !', style: PdfStyles.bodyTextStyle),
+                pw.Text('Merci d\'avoir vecu cette aventure !', style: PdfStyles.bodyTextStyle),
                 PdfStyles.verticalSpace(20),
                 pw.Text('Les Baroudeurs - ' + DateTime.now().year.toString(), style: PdfStyles.bodyTextStyle),
               ],
@@ -448,7 +441,7 @@ class PdfExportService {
           pw.Table.fromTextArray(
             headers: ['', ''],
             data: [
-              ['Distance', jour.distanceKm?.toStringAsFixed(1) ?? 'N/A' + ' km'],
+              ['Distance', (jour.distanceKm?.toStringAsFixed(1) ?? 'N/A') + ' km'],
               ['Meteo', jour.meteo],
               ['Emotions', jour.emotions],
               ['Difficultes', jour.difficultes],
@@ -518,7 +511,7 @@ class PdfExportService {
                 ),
                 pw.SizedBox(height: 40),
                 pw.Text(
-                  'Merci d'avoir vecu cette aventure !',
+                  'Merci d\'avoir vecu cette aventure !',
                   style: const pw.TextStyle(fontSize: 14),
                 ),
                 pw.SizedBox(height: 20),
