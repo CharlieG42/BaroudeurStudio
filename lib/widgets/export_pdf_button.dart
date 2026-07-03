@@ -6,7 +6,7 @@ import '../models/trek.dart';
 import '../services/export_service.dart';
 
 /// Bouton pour exporter un trek dans différents formats
-/// Offre 3 options : PDF texte seulement, PDF avec images, PPTX (PowerPoint)
+/// Offre 3 options : PDF texte seulement, PDF avec images, ODP (OpenDocument Presentation)
 class ExportPdfButton extends StatelessWidget {
   final Trek trek;
   final VoidCallback? onExportComplete;
@@ -60,12 +60,12 @@ class ExportPdfButton extends StatelessWidget {
                 subtitle: const Text('Complet avec photos, génération en arrière-plan'),
                 onTap: () => Navigator.pop(context, 'pdf_images'),
               ),
-              // Option 3: PPTX (PowerPoint)
+              // Option 3: ODP (OpenDocument Presentation)
               ListTile(
-                leading: const Icon(Icons.slideshow, color: Colors.purple),
-                title: const Text('PowerPoint (PPTX)'),
-                subtitle: const Text('Format modifiable, idéal pour les ajustements manuels'),
-                onTap: () => Navigator.pop(context, 'pptx'),
+                leading: const Icon(Icons.slideshow, color: Colors.orange),
+                title: const Text('ODP (LibreOffice)'),
+                subtitle: const Text('Format modifiable, compatible avec LibreOffice/OpenOffice'),
+                onTap: () => Navigator.pop(context, 'odp'),
               ),
             ],
           ),
@@ -93,11 +93,11 @@ class ExportPdfButton extends StatelessWidget {
         );
         exportFile = await exportService.exportTrekToPdfWithImages(trek);
       } 
-      else if (result == 'pptx') {
+      else if (result == 'odp') {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Génération du PowerPoint...')),
+          const SnackBar(content: Text('Génération du ODP (LibreOffice)...')),
         );
-        exportFile = await exportService.exportTrekToPptx(trek);
+        exportFile = await exportService.exportTrekToOdp(trek);
       }
       
       if (exportFile != null) {
@@ -111,7 +111,7 @@ class ExportPdfButton extends StatelessWidget {
       scaffoldMessenger.hideCurrentSnackBar();
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('Erreur lors de la génération: $e'),
+          content: Text('Erreur lors de la génération: ' + e.toString()),
           backgroundColor: Colors.red,
         ),
       );
@@ -120,13 +120,13 @@ class ExportPdfButton extends StatelessWidget {
 
   Future<void> _showExportResultDialog(BuildContext context, File exportFile) async {
     final fileName = exportFile.path.split('/').last;
-    final fileType = fileName.endsWith('.pdf') ? 'PDF' : 'PowerPoint';
+    final fileType = fileName.endsWith('.pdf') ? 'PDF' : 'ODP';
     
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('$fileType généré !'),
-        content: Text('Fichier: $fileName'),
+        title: Text(fileType + ' généré !'),
+        content: Text('Fichier: ' + fileName),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
