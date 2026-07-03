@@ -160,7 +160,7 @@ class ContentXmlBuilder {
     
     // Ajout des images
     for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-      final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+      final imagePath = 'Pictures/image_$pageIndex_$mediaIndex.jpg';
       final yPosition = 3 + mediaIndex * 8;
       xml.writeln('        <draw:frame draw:name="image_$pageIndex_$mediaIndex" draw:style-name="graphic" svg:x="2cm" svg:y="' + yPosition.toString() + 'cm" svg:width="10cm" svg:height="7cm">');
       xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>');
