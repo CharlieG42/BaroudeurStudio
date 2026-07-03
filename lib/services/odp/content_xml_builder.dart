@@ -188,12 +188,13 @@ class ContentXmlBuilder {
   static void _addEndPage(StringBuffer xml, Trek trek, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final year = DateTime.now().year;
+    final thankYouMessage = _escapeXml("Merci d'avoir vecu cette aventure !");
     
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:text-box svg:x="1cm" svg:y="8cm" svg:width="26cm" svg:height="4cm">');
     xml.writeln('          <text:p text:style-name="P1">Fin du recit</text:p>');
     xml.writeln('          <text:p text:style-name="P2">$title</text:p>');
-    xml.writeln('          <text:p text:style-name="P3">Merci d\'avoir vecu cette aventure !</text:p>');
+    xml.writeln('          <text:p text:style-name="P3">$thankYouMessage</text:p>');
     xml.writeln('          <text:p text:style-name="P5">Les Baroudeurs - $year</text:p>');
     xml.writeln('        </draw:text-box>');
     xml.writeln('      </draw:page>');
