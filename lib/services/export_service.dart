@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -7,6 +8,7 @@ import '../models/trek.dart';
 import 'pdf/pdf_export_service.dart';
 import 'odp/odp_export_service.dart';
 import 'utils/filename_utils.dart';
+import 'utils/image_optimizer.dart';
 
 /// Service unifié pour exporter les treks dans différents formats
 /// Formats supportés : PDF (texte seulement), PDF avec images, ODP (OpenDocument Presentation)
@@ -69,10 +71,4 @@ class ExportService {
   static Uint8List optimizeImage(Uint8List imageBytes, {int? quality}) {
     return ImageOptimizer.optimizeImage(imageBytes, quality: quality);
   }
-}
-
-// Extensions pour JourTrek
-extension JourTrekExtensions on JourTrek {
-  bool get hasPhotos => false;
-  int get photoCount => 0;
 }
