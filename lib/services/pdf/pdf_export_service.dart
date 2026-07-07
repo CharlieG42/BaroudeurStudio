@@ -42,7 +42,6 @@ class PdfExportService {
   }
 
   /// Génère un PDF avec images en arrière-plan
-  /// Utilise un isolate pour éviter les problèmes de mémoire
   Future<File> exportTrekToPdfWithImages(Trek trek) async {
     final jours = await DatabaseHelper.instance.getJoursForTrek(trek.id!);
     final joursData = <Map<String, dynamic>>[];
@@ -95,19 +94,40 @@ class PdfExportService {
             child: pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                PdfStyles.verticalSpace(50),
-                pw.Text('Les Baroudeurs', style: PdfStyles.titleStyle),
-                PdfStyles.verticalSpace(20),
-                pw.Text(trek.titre, style: PdfStyles.subtitleStyle),
-                PdfStyles.verticalSpace(10),
+                pw.SizedBox(height: 50),
+                pw.Text(
+                  'Les Baroudeurs',
+                  style: pw.TextStyle(
+                    fontSize: 36,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfStyles.primaryColor,
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  trek.titre,
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfStyles.accentColor,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
                 pw.Text(
                   trek.region + ', ' + trek.pays,
-                  style: PdfStyles.italicTextStyle.copyWith(fontSize: 18),
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    color: PdfStyles.lightTextColor,
+                  ),
                 ),
-                PdfStyles.verticalSpace(30),
+                pw.SizedBox(height: 30),
                 pw.Text(
                   'Un recit de voyage',
-                  style: PdfStyles.italicTextStyle,
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontStyle: pw.FontStyle.italic,
+                    color: PdfStyles.lightTextColor,
+                  ),
                 ),
               ],
             ),
@@ -129,25 +149,96 @@ class PdfExportService {
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              PdfStyles.verticalSpace(50),
-              pw.Text(trek.titre, style: PdfStyles.subtitleStyle),
-              PdfStyles.horizontalDivider(),
-              PdfStyles.verticalSpace(20),
-              PdfStyles.infoRow('Du:', dateFormat.format(dateDebut)),
-              PdfStyles.verticalSpace(10),
-              PdfStyles.infoRow('Au:', dateFormat.format(dateFin)),
-              PdfStyles.verticalSpace(10),
-              PdfStyles.infoRow('Duree:', duree.toString() + ' jour(s)'),
-              if (trek.distanceKm != null) ...[
-                PdfStyles.verticalSpace(10),
-                PdfStyles.infoRow('Distance:', trek.distanceKm!.toStringAsFixed(1) + ' km'),
-              ],
-              if (trek.denivelePositifM != null) ...[
-                PdfStyles.verticalSpace(10),
-                PdfStyles.infoRow('Denivele:', trek.denivelePositifM.toString() + ' m'),
-              ],
-              PdfStyles.verticalSpace(20),
-              PdfStyles.infoRow('Compagnons:', trek.compagnons.isNotEmpty ? trek.compagnons : 'Seul(e)'),
+              pw.SizedBox(height: 50),
+              pw.Text(
+                trek.titre,
+                style: pw.TextStyle(
+                  fontSize: 28,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfStyles.primaryColor,
+                ),
+              ),
+              pw.Divider(color: PdfStyles.secondaryColor, thickness: 2),
+              pw.SizedBox(height: 20),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 120,
+                    child: pw.Text(
+                      'Du:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfStyles.accentColor,
+                      ),
+                    ),
+                  ),
+                  pw.Text(
+                    dateFormat.format(dateDebut),
+                    style: pw.TextStyle(color: PdfStyles.textColor),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 120,
+                    child: pw.Text(
+                      'Au:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfStyles.accentColor,
+                      ),
+                    ),
+                  ),
+                  pw.Text(
+                    dateFormat.format(dateFin),
+                    style: pw.TextStyle(color: PdfStyles.textColor),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 120,
+                    child: pw.Text(
+                      'Duree:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfStyles.accentColor,
+                      ),
+                    ),
+                  ),
+                  pw.Text(
+                    duree.toString() + ' jour(s)',
+                    style: pw.TextStyle(color: PdfStyles.textColor),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 20),
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 120,
+                    child: pw.Text(
+                      'Compagnons:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfStyles.accentColor,
+                      ),
+                    ),
+                  ),
+                  pw.Text(
+                    trek.compagnons.isNotEmpty ? trek.compagnons : 'Seul(e)',
+                    style: pw.TextStyle(color: PdfStyles.textColor),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -162,29 +253,52 @@ class PdfExportService {
     pdf.addPage(
       pw.MultiPage(
         build: (pw.Context context) => [
-          PdfStyles.secondaryContainer(
-            pw.Row(
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            color: PdfStyles.secondaryColor,
+            child: pw.Row(
               children: [
                 pw.Expanded(
                   child: pw.Text(
                     dateFormat.format(jourDate),
-                    style: PdfStyles.sectionTitleStyle,
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfStyles.textColor,
+                    ),
                   ),
                 ),
                 if (jour.lieuDepart.isNotEmpty || jour.lieuArrivee.isNotEmpty)
                   pw.Text(
                     jour.lieuDepart + ' -> ' + jour.lieuArrivee,
-                    style: PdfStyles.italicTextStyle,
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontStyle: pw.FontStyle.italic,
+                      color: PdfStyles.textColor,
+                    ),
                   ),
               ],
             ),
           ),
-          PdfStyles.verticalSpace(15),
+          pw.SizedBox(height: 15),
           if (jour.resume.isNotEmpty) ...[
-            pw.Text('Recit du jour:', style: PdfStyles.subtitleStyle.copyWith(fontSize: 16)),
-            PdfStyles.verticalSpace(8),
-            pw.Text(jour.resume, style: PdfStyles.bodyTextStyle),
-            PdfStyles.verticalSpace(15),
+            pw.Text(
+              'Recit du jour:',
+              style: pw.TextStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfStyles.primaryColor,
+              ),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              jour.resume,
+              style: pw.TextStyle(
+                fontSize: 12,
+                color: PdfStyles.textColor,
+              ),
+            ),
+            pw.SizedBox(height: 15),
           ],
           pw.Table.fromTextArray(
             headers: ['', ''],
@@ -196,9 +310,12 @@ class PdfExportService {
               ['Decouvertes', jour.decouvertes],
             ],
             border: null,
-            headerStyle: PdfStyles.labelStyle,
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              color: PdfStyles.accentColor,
+            ),
             cellAlignment: pw.Alignment.centerLeft,
-            cellPadding: PdfStyles.tableCellPadding,
+            cellPadding: const pw.EdgeInsets.all(5),
           ),
         ],
       ),
@@ -213,14 +330,40 @@ class PdfExportService {
             child: pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                PdfStyles.verticalSpace(100),
-                pw.Text('Fin du recit', style: PdfStyles.titleStyle),
-                PdfStyles.verticalSpace(20),
-                pw.Text(trek.titre, style: PdfStyles.subtitleStyle),
-                PdfStyles.verticalSpace(40),
-                pw.Text("Merci d'avoir vecu cette aventure !", style: PdfStyles.bodyTextStyle),
-                PdfStyles.verticalSpace(20),
-                pw.Text('Les Baroudeurs - ' + DateTime.now().year.toString(), style: PdfStyles.bodyTextStyle),
+                pw.SizedBox(height: 100),
+                pw.Text(
+                  'Fin du recit',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfStyles.primaryColor,
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  trek.titre,
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontStyle: pw.FontStyle.italic,
+                    color: PdfStyles.accentColor,
+                  ),
+                ),
+                pw.SizedBox(height: 40),
+                pw.Text(
+                  "Merci d'avoir vecu cette aventure !",
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    color: PdfStyles.lightTextColor,
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Les Baroudeurs - ' + DateTime.now().year.toString(),
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    color: PdfStyles.lightTextColor,
+                  ),
+                ),
               ],
             ),
           ),
@@ -448,7 +591,10 @@ class PdfExportService {
               ['Decouvertes', jour.decouvertes],
             ],
             border: null,
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfStyles.accentColor),
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              color: PdfStyles.accentColor,
+            ),
             cellAlignment: pw.Alignment.centerLeft,
             cellPadding: const pw.EdgeInsets.all(5),
           ),
@@ -479,7 +625,10 @@ class PdfExportService {
         color: PdfColors.grey300,
         height: PdfStyles.imageHeight,
         child: pw.Center(
-          child: pw.Text('Photo introuvable', style: const pw.TextStyle(color: PdfColors.white)),
+          child: pw.Text(
+            'Photo introuvable',
+            style: const pw.TextStyle(color: PdfColors.white),
+          ),
         ),
       );
     }
