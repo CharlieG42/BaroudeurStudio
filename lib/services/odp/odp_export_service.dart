@@ -33,10 +33,11 @@ class OdpExportService {
     // Créer l'archive ZIP
     final archive = Archive();
     
-    // Ajouter le fichier mimetype (doit être le premier fichier dans l'archive)
-    archive.addFile(ArchiveFile(
+    // IMPORTANT: mimetype DOIT être le premier fichier et NON compressé
+    // Ajouter le fichier mimetype en premier avec Store (non compressé)
+    archive.addFile(ArchiveFile.store(
       'mimetype',
-      48,
+      'application/vnd.oasis.opendocument.presentation'.length,
       'application/vnd.oasis.opendocument.presentation'.codeUnits
     ));
     
@@ -87,6 +88,7 @@ class OdpExportService {
     final file = File(filePath);
     
     // Encoder et écrire l'archive
+    // Utiliser ZipEncoder avec store pour mimetype
     final zipData = ZipEncoder().encode(archive);
     if (zipData != null) {
       await file.writeAsBytes(zipData);
