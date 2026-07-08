@@ -6,7 +6,7 @@ import '../models/trek.dart';
 import '../services/export_service.dart';
 
 /// Bouton pour exporter un trek dans différents formats
-/// Offre 3 options : PDF texte seulement, PDF avec images, ODP (OpenDocument Presentation)
+/// Offre 2 options : PDF texte seulement, ODP (OpenDocument Presentation)
 class ExportPdfButton extends StatelessWidget {
   final Trek trek;
   final VoidCallback? onExportComplete;
@@ -53,14 +53,7 @@ class ExportPdfButton extends StatelessWidget {
                 subtitle: const Text('Rapide, sans images, pas de risque de mémoire'),
                 onTap: () => Navigator.pop(context, 'pdf_text'),
               ),
-              // Option 2: PDF avec images
-              ListTile(
-                leading: const Icon(Icons.image, color: Colors.green),
-                title: const Text('PDF - Avec images'),
-                subtitle: const Text('Complet avec photos, génération en arrière-plan'),
-                onTap: () => Navigator.pop(context, 'pdf_images'),
-              ),
-              // Option 3: ODP (OpenDocument Presentation)
+              // Option 2: ODP (OpenDocument Presentation)
               ListTile(
                 leading: const Icon(Icons.slideshow, color: Colors.orange),
                 title: const Text('ODP (LibreOffice)'),
@@ -86,12 +79,6 @@ class ExportPdfButton extends StatelessWidget {
           const SnackBar(content: Text('Génération du PDF (texte seulement)...')),
         );
         exportFile = await exportService.exportTrekToPdfTextOnly(trek);
-      } 
-      else if (result == 'pdf_images') {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Génération du PDF (avec images) en arrière-plan...')),
-        );
-        exportFile = await exportService.exportTrekToPdfWithImages(trek);
       } 
       else if (result == 'odp') {
         scaffoldMessenger.showSnackBar(
