@@ -46,7 +46,7 @@ class OdpExportService {
     // IMPORTANT: mimetype DOIT être le premier fichier dans l'archive
     // Pour ODP, mimetype ne doit pas être compressé et doit être le premier
     final mimetypeContent = 'application/vnd.oasis.opendocument.presentation';
-    archive.addFile(ArchiveFile.stored('mimetype', mimetypeContent.codeUnits));
+    archive.addFile(ArchiveFile('mimetype', mimetypeContent.length, mimetypeContent.codeUnits, false));
     
     // Ajouter META-INF/manifest.xml avec toutes les entrées y compris les images
     final manifestXml = ManifestXmlBuilder.build(allImagePaths);
