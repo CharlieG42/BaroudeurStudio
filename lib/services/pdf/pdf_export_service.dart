@@ -56,37 +56,22 @@ class PdfExportService {
                 pw.SizedBox(height: 50),
                 pw.Text(
                   'Les Baroudeurs',
-                  style: pw.TextStyle(
-                    fontSize: 36,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfStyles.primaryColor,
-                  ),
+                  style: PdfStyles.titleStyle,
                 ),
                 pw.SizedBox(height: 20),
                 pw.Text(
                   trek.titre,
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfStyles.accentColor,
-                  ),
+                  style: PdfStyles.subtitleStyle,
                 ),
                 pw.SizedBox(height: 10),
                 pw.Text(
                   trek.region + ', ' + trek.pays,
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    color: PdfStyles.lightTextColor,
-                  ),
+                  style: PdfStyles.italicTextStyle,
                 ),
                 pw.SizedBox(height: 30),
                 pw.Text(
                   'Un recit de voyage',
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontStyle: pw.FontStyle.italic,
-                    color: PdfStyles.lightTextColor,
-                  ),
+                  style: PdfStyles.italicTextStyle,
                 ),
               ],
             ),
@@ -111,11 +96,7 @@ class PdfExportService {
               pw.SizedBox(height: 50),
               pw.Text(
                 trek.titre,
-                style: pw.TextStyle(
-                  fontSize: 28,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfStyles.primaryColor,
-                ),
+                style: PdfStyles.titleStyle,
               ),
               pw.Divider(color: PdfStyles.secondaryColor, thickness: 2),
               pw.SizedBox(height: 20),
@@ -126,15 +107,12 @@ class PdfExportService {
                     width: 120,
                     child: pw.Text(
                       'Du:',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfStyles.accentColor,
-                      ),
+                      style: PdfStyles.labelStyle,
                     ),
                   ),
                   pw.Text(
                     dateFormat.format(dateDebut),
-                    style: pw.TextStyle(color: PdfStyles.textColor),
+                    style: PdfStyles.bodyTextStyle,
                   ),
                 ],
               ),
@@ -146,15 +124,12 @@ class PdfExportService {
                     width: 120,
                     child: pw.Text(
                       'Au:',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfStyles.accentColor,
-                      ),
+                      style: PdfStyles.labelStyle,
                     ),
                   ),
                   pw.Text(
                     dateFormat.format(dateFin),
-                    style: pw.TextStyle(color: PdfStyles.textColor),
+                    style: PdfStyles.bodyTextStyle,
                   ),
                 ],
               ),
@@ -166,15 +141,12 @@ class PdfExportService {
                     width: 120,
                     child: pw.Text(
                       'Duree:',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfStyles.accentColor,
-                      ),
+                      style: PdfStyles.labelStyle,
                     ),
                   ),
                   pw.Text(
                     duree.toString() + ' jour(s)',
-                    style: pw.TextStyle(color: PdfStyles.textColor),
+                    style: PdfStyles.bodyTextStyle,
                   ),
                 ],
               ),
@@ -187,15 +159,12 @@ class PdfExportService {
                       width: 120,
                       child: pw.Text(
                         'Distance:',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfStyles.accentColor,
-                        ),
+                        style: PdfStyles.labelStyle,
                       ),
                     ),
                     pw.Text(
                       trek.distanceKm!.toStringAsFixed(1) + ' km',
-                      style: pw.TextStyle(color: PdfStyles.textColor),
+                      style: PdfStyles.bodyTextStyle,
                     ),
                   ],
                 ),
@@ -209,15 +178,12 @@ class PdfExportService {
                       width: 120,
                       child: pw.Text(
                         'Denivele:',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfStyles.accentColor,
-                        ),
+                        style: PdfStyles.labelStyle,
                       ),
                     ),
                     pw.Text(
                       trek.denivelePositifM.toString() + ' m',
-                      style: pw.TextStyle(color: PdfStyles.textColor),
+                      style: PdfStyles.bodyTextStyle,
                     ),
                   ],
                 ),
@@ -230,15 +196,12 @@ class PdfExportService {
                     width: 120,
                     child: pw.Text(
                       'Compagnons:',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfStyles.accentColor,
-                      ),
+                      style: PdfStyles.labelStyle,
                     ),
                   ),
                   pw.Text(
                     trek.compagnons.isNotEmpty ? trek.compagnons : 'Seul(e)',
-                    style: pw.TextStyle(color: PdfStyles.textColor),
+                    style: PdfStyles.bodyTextStyle,
                   ),
                 ],
               ),
@@ -257,28 +220,20 @@ class PdfExportService {
       pw.MultiPage(
         build: (pw.Context context) => [
           pw.Container(
-            padding: const pw.EdgeInsets.all(10),
+            padding: PdfStyles.containerPadding,
             color: PdfStyles.secondaryColor,
             child: pw.Row(
               children: [
                 pw.Expanded(
                   child: pw.Text(
                     dateFormat.format(jourDate),
-                    style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfStyles.textColor,
-                    ),
+                    style: PdfStyles.sectionTitleStyle,
                   ),
                 ),
                 if (jour.lieuDepart.isNotEmpty || jour.lieuArrivee.isNotEmpty)
                   pw.Text(
                     jour.lieuDepart + ' -> ' + jour.lieuArrivee,
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontStyle: pw.FontStyle.italic,
-                      color: PdfStyles.textColor,
-                    ),
+                    style: PdfStyles.italicTextStyle,
                   ),
               ],
             ),
@@ -287,19 +242,12 @@ class PdfExportService {
           if (jour.resume.isNotEmpty) ...[
             pw.Text(
               'Recit du jour:',
-              style: pw.TextStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfStyles.primaryColor,
-              ),
+              style: PdfStyles.sectionTitleStyle,
             ),
             pw.SizedBox(height: 8),
             pw.Text(
               jour.resume,
-              style: pw.TextStyle(
-                fontSize: 12,
-                color: PdfStyles.textColor,
-              ),
+              style: PdfStyles.bodyTextStyle,
             ),
             pw.SizedBox(height: 15),
           ],
@@ -313,12 +261,9 @@ class PdfExportService {
               ['Decouvertes', jour.decouvertes],
             ],
             border: null,
-            headerStyle: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              color: PdfStyles.accentColor,
-            ),
+            headerStyle: PdfStyles.labelStyle,
             cellAlignment: pw.Alignment.centerLeft,
-            cellPadding: const pw.EdgeInsets.all(5),
+            cellPadding: PdfStyles.tableCellPadding,
           ),
         ],
       ),
@@ -336,36 +281,22 @@ class PdfExportService {
                 pw.SizedBox(height: 100),
                 pw.Text(
                   'Fin du recit',
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfStyles.primaryColor,
-                  ),
+                  style: PdfStyles.titleStyle,
                 ),
                 pw.SizedBox(height: 20),
                 pw.Text(
                   trek.titre,
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    fontStyle: pw.FontStyle.italic,
-                    color: PdfStyles.accentColor,
-                  ),
+                  style: PdfStyles.subtitleStyle,
                 ),
                 pw.SizedBox(height: 40),
                 pw.Text(
                   "Merci d'avoir vecu cette aventure !",
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    color: PdfStyles.lightTextColor,
-                  ),
+                  style: PdfStyles.italicTextStyle,
                 ),
                 pw.SizedBox(height: 20),
                 pw.Text(
                   'Les Baroudeurs - ' + DateTime.now().year.toString(),
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    color: PdfStyles.lightTextColor,
-                  ),
+                  style: PdfStyles.bodyTextStyle,
                 ),
               ],
             ),
@@ -374,4 +305,3 @@ class PdfExportService {
       ),
     );
   }
-}
