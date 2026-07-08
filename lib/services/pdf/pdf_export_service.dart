@@ -1,22 +1,18 @@
 import 'dart:io';
-import 'dart:isolate';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart';
 
 import '../../models/trek.dart';
 import '../../models/jour_trek.dart';
-import '../../models/media.dart';
 import '../../db/database_helper.dart';
-import '../../config/app_config.dart';
-import '../utils/image_optimizer.dart';
 import '../utils/filename_utils.dart';
 import 'pdf_styles.dart';
 
 /// Service d'export PDF pour les treks
+/// Uniquement pour l'export texte (sans images pour éviter les problèmes de mémoire)
 class PdfExportService {
   /// Génère un PDF avec le texte uniquement (pas d'images)
   Future<File> exportTrekToPdfTextOnly(Trek trek) async {
@@ -41,46 +37,9 @@ class PdfExportService {
     return file;
   }
 
-  /// Génère un PDF avec images en arrière-plan
-  Future<File> exportTrekToPdfWithImages(Trek trek) async {
-    final jours = await DatabaseHelper.instance.getJoursForTrek(trek.id!);
-    final joursData = <Map<String, dynamic>>[];
-    
-    for (final jour in jours) {
-      final medias = await DatabaseHelper.instance.getMediasForJour(jour.id!);
-      joursData.add({
-        'jour': jour,
-        'medias': medias,
-      });
-    }
-
-    final receivePort = ReceivePort();
-    final sendPort = receivePort.sendPort;
-    
-    await Isolate.spawn(
-      _generatePdfInBackground,
-      {
-        'trek': trek,
-        'joursData': joursData,
-        'sendPort': sendPort,
-        'compressionQuality': AppConfig.imageCompressionQuality,
-      },
-    );
-    
-    final result = await receivePort.first as Map<String, dynamic>;
-    
-    if (result['error'] != null) {
-      throw Exception('Erreur: ' + result['error'].toString());
-    }
-    
-    return File(result['path']);
-  }
-
   /// Imprime le PDF
-  Future<void> printTrekPdf(Trek trek, {bool withImages = true}) async {
-    final pdfFile = withImages 
-        ? await exportTrekToPdfWithImages(trek)
-        : await exportTrekToPdfTextOnly(trek);
+  Future<void> printTrekPdf(Trek trek) async {
+    final pdfFile = await exportTrekToPdfTextOnly(trek);
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdfFile.readAsBytesSync(),
     );
@@ -219,6 +178,50 @@ class PdfExportService {
                   ),
                 ],
               ),
+              if (trek.distanceKm != null) ...[
+                pw.SizedBox(height: 10),
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.SizedBox(
+                      width: 120,
+                      child: pw.Text(
+                        'Distance:',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfStyles.accentColor,
+                        ),
+                      ),
+                    ),
+                    pw.Text(
+                      trek.distanceKm!.toStringAsFixed(1) + ' km',
+                      style: pw.TextStyle(color: PdfStyles.textColor),
+                    ),
+                  ],
+                ),
+              ],
+              if (trek.denivelePositifM != null) ...[
+                pw.SizedBox(height: 10),
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.SizedBox(
+                      width: 120,
+                      child: pw.Text(
+                        'Denivele:',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfStyles.accentColor,
+                        ),
+                      ),
+                    ),
+                    pw.Text(
+                      trek.denivelePositifM.toString() + ' m',
+                      style: pw.TextStyle(color: PdfStyles.textColor),
+                    ),
+                  ],
+                ),
+              ],
               pw.SizedBox(height: 20),
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -363,310 +366,6 @@ class PdfExportService {
                     fontSize: 12,
                     color: PdfStyles.lightTextColor,
                   ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Future<void> _generatePdfInBackground(Map<String, dynamic> params) async {
-    initializeDateFormatting('fr');
-    
-    final sendPort = params['sendPort'] as SendPort;
-    final trek = params['trek'] as Trek;
-    final joursData = params['joursData'] as List<Map<String, dynamic>>;
-    final compressionQuality = params['compressionQuality'] as int? ?? 70;
-    
-    try {
-      final pdf = pw.Document();
-      
-      _addCoverPageInIsolate(pdf, trek);
-      _addTitlePageInIsolate(pdf, trek);
-      
-      for (final data in joursData) {
-        final jour = data['jour'] as JourTrek;
-        final medias = data['medias'] as List<Media>;
-        _addJourPageInIsolate(pdf, trek, jour, medias, compressionQuality);
-      }
-      
-      _addEndPageInIsolate(pdf, trek);
-
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = directory.path + '/Baroudeurs_Images_' + FilenameUtils.sanitizeFilename(trek.titre) + '.pdf';
-      final file = File(filePath);
-      await file.writeAsBytes(await pdf.save());
-      
-      sendPort.send({'path': filePath});
-    } catch (e) {
-      sendPort.send({'error': e.toString()});
-    }
-  }
-
-  static void _addCoverPageInIsolate(pw.Document pdf, Trek trek) {
-    pdf.addPage(
-      pw.MultiPage(
-        build: (pw.Context context) => [
-          pw.Center(
-            child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.SizedBox(height: 50),
-                pw.Text(
-                  'Les Baroudeurs',
-                  style: const pw.TextStyle(
-                    fontSize: 36,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Text(
-                  trek.titre,
-                  style: const pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  trek.region + ', ' + trek.pays,
-                  style: const pw.TextStyle(fontSize: 18),
-                ),
-                pw.SizedBox(height: 30),
-                pw.Text(
-                  'Un recit de voyage',
-                  style: const pw.TextStyle(
-                    fontSize: 16,
-                    fontStyle: pw.FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static void _addTitlePageInIsolate(pw.Document pdf, Trek trek) {
-    final duree = trek.dureeJours;
-    final dateFormat = DateFormat('dd MMMM yyyy', 'fr');
-    final dateDebut = DateTime.parse(trek.dateDebut);
-    final dateFin = DateTime.parse(trek.dateFin);
-
-    pdf.addPage(
-      pw.MultiPage(
-        build: (pw.Context context) => [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.SizedBox(height: 50),
-              pw.Text(
-                trek.titre,
-                style: const pw.TextStyle(
-                  fontSize: 28,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.Divider(thickness: 2),
-              pw.SizedBox(height: 20),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.SizedBox(
-                    width: 120,
-                    child: pw.Text(
-                      'Du:',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.Text(dateFormat.format(dateDebut)),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.SizedBox(
-                    width: 120,
-                    child: pw.Text(
-                      'Au:',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.Text(dateFormat.format(dateFin)),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.SizedBox(
-                    width: 120,
-                    child: pw.Text(
-                      'Duree:',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.Text(duree.toString() + ' jour(s)'),
-                ],
-              ),
-              pw.SizedBox(height: 20),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static void _addJourPageInIsolate(pw.Document pdf, Trek trek, JourTrek jour, List<Media> medias, int compressionQuality) {
-    final dateFormat = DateFormat('EEEE d MMMM yyyy', 'fr');
-    final jourDate = DateTime.parse(jour.date);
-
-    pdf.addPage(
-      pw.MultiPage(
-        build: (pw.Context context) => [
-          pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            color: PdfStyles.secondaryColor,
-            child: pw.Row(
-              children: [
-                pw.Expanded(
-                  child: pw.Text(
-                    dateFormat.format(jourDate),
-                    style: pw.TextStyle(
-                      fontSize: 18,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfStyles.textColor,
-                    ),
-                  ),
-                ),
-                if (jour.lieuDepart.isNotEmpty || jour.lieuArrivee.isNotEmpty)
-                  pw.Text(
-                    jour.lieuDepart + ' -> ' + jour.lieuArrivee,
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontStyle: pw.FontStyle.italic,
-                      color: PdfStyles.textColor,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 15),
-          if (medias.isNotEmpty) ...[
-            pw.GridView(
-              crossAxisCount: 1,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              children: medias.map((media) => _buildPhotoWidgetInIsolate(media, compressionQuality)).toList(),
-            ),
-            pw.SizedBox(height: 15),
-          ],
-          if (jour.resume.isNotEmpty) ...[
-            pw.Text(
-              'Recit du jour:',
-              style: pw.TextStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfStyles.primaryColor,
-              ),
-            ),
-            pw.SizedBox(height: 8),
-            pw.Text(
-              jour.resume,
-              style: const pw.TextStyle(fontSize: 12, color: PdfStyles.textColor),
-            ),
-            pw.SizedBox(height: 15),
-          ],
-          pw.Table.fromTextArray(
-            headers: ['', ''],
-            data: [
-              ['Distance', (jour.distanceKm?.toStringAsFixed(1) ?? 'N/A') + ' km'],
-              ['Meteo', jour.meteo],
-              ['Emotions', jour.emotions],
-              ['Difficultes', jour.difficultes],
-              ['Decouvertes', jour.decouvertes],
-            ],
-            border: null,
-            headerStyle: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              color: PdfStyles.accentColor,
-            ),
-            cellAlignment: pw.Alignment.centerLeft,
-            cellPadding: const pw.EdgeInsets.all(5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildPhotoWidgetInIsolate(Media media, int compressionQuality) {
-    try {
-      final file = File(media.cheminFichier);
-      final imageBytes = file.readAsBytesSync();
-      final optimizedBytes = ImageOptimizer.optimizeImage(imageBytes, quality: compressionQuality);
-      final image = pw.MemoryImage(optimizedBytes);
-      
-      return pw.Container(
-        height: PdfStyles.imageHeight,
-        decoration: pw.BoxDecoration(
-          borderRadius: pw.BorderRadius.circular(8),
-          image: pw.DecorationImage(
-            image: image,
-            fit: pw.BoxFit.cover,
-          ),
-        ),
-      );
-    } catch (e) {
-      return pw.Container(
-        color: PdfColors.grey300,
-        height: PdfStyles.imageHeight,
-        child: pw.Center(
-          child: pw.Text(
-            'Photo introuvable',
-            style: const pw.TextStyle(color: PdfColors.white),
-          ),
-        ),
-      );
-    }
-  }
-
-  static void _addEndPageInIsolate(pw.Document pdf, Trek trek) {
-    pdf.addPage(
-      pw.MultiPage(
-        build: (pw.Context context) => [
-          pw.Center(
-            child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.SizedBox(height: 100),
-                pw.Text(
-                  'Fin du recit',
-                  style: const pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Text(
-                  trek.titre,
-                  style: const pw.TextStyle(
-                    fontSize: 18,
-                    fontStyle: pw.FontStyle.italic,
-                  ),
-                ),
-                pw.SizedBox(height: 40),
-                pw.Text(
-                  "Merci d'avoir vecu cette aventure !",
-                  style: const pw.TextStyle(fontSize: 14),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Text(
-                  'Les Baroudeurs - ' + DateTime.now().year.toString(),
-                  style: const pw.TextStyle(fontSize: 12),
                 ),
               ],
             ),
