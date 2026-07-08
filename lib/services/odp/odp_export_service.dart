@@ -25,9 +25,19 @@ class OdpExportService {
     
     // Récupérer les médias par jour
     final mediasByJour = <int, List<Media>>{};
+    final allImagePaths = <String>[];
+    
+    // First pass: collect all image paths (must match content_xml_builder.dart logic)
+    int pageIndex = 0;
     for (final jour in jours) {
       final medias = await DatabaseHelper.instance.getMediasForJour(jour.id!);
       mediasByJour[jour.id!] = medias;
+      
+      for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
+        final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+        allImagePaths.add(imagePath);
+      }
+      pageIndex++;
     }
     
     // Créer l'archive ZIP
@@ -36,10 +46,10 @@ class OdpExportService {
     // IMPORTANT: mimetype DOIT être le premier fichier dans l'archive
     // Pour ODP, mimetype ne doit pas être compressé et doit être le premier
     final mimetypeContent = 'application/vnd.oasis.opendocument.presentation';
-    archive.addFile(ArchiveFile('mimetype', mimetypeContent.length, mimetypeContent.codeUnits));
+    archive.addFile(ArchiveFile('mimetype', mimetypeContent.length, mimetypeContent.codeUnits, compress: false));
     
-    // Ajouter META-INF/manifest.xml
-    final manifestXml = ManifestXmlBuilder.build();
+    // Ajouter META-INF/manifest.xml avec toutes les entrées y compris les images
+    final manifestXml = ManifestXmlBuilder.build(allImagePaths);
     archive.addFile(ArchiveFile('META-INF/manifest.xml', manifestXml.length, manifestXml.codeUnits));
     
     // Ajouter content.xml
@@ -54,8 +64,8 @@ class OdpExportService {
     final metaXml = MetaXmlBuilder.build(trek);
     archive.addFile(ArchiveFile('meta.xml', metaXml.length, metaXml.codeUnits));
     
-    // Ajouter les images à l'archive
-    int pageIndex = 0;
+    // Ajouter les images à l'archive (second pass with same pageIndex logic)
+    pageIndex = 0;
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
