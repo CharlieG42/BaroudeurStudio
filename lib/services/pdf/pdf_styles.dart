@@ -4,11 +4,11 @@ import 'package:pdf/widgets.dart' as pw;
 /// Styles et constantes pour la génération PDF
 class PdfStyles {
   // Couleurs principales
-  static const primaryColor = PdfColor.fromInt(0xFFf5a665);
-  static const secondaryColor = PdfColor.fromInt(0xFFd7b895);
-  static const accentColor = PdfColor.fromInt(0xFFA67352);
-  static const textColor = PdfColor.fromInt(0xFF000000);
-  static const lightTextColor = PdfColor.fromInt(0xFF666666);
+  static final primaryColor = PdfColor.fromInt(0xFFf5a665);
+  static final secondaryColor = PdfColor.fromInt(0xFFd7b895);
+  static final accentColor = PdfColor.fromInt(0xFFA67352);
+  static final textColor = PdfColor.fromInt(0xFF000000);
+  static final lightTextColor = PdfColor.fromInt(0xFF666666);
   
   // Dimensions
   static const double imageHeight = 120.0;
@@ -19,43 +19,43 @@ class PdfStyles {
   static const double largeSpacing = 20.0;
 
   // Styles de texte
-  static const pw.TextStyle titleStyle = pw.TextStyle(
+  static final titleStyle = pw.TextStyle(
     fontSize: 36,
     fontWeight: pw.FontWeight.bold,
     color: primaryColor,
   );
 
-  static const pw.TextStyle subtitleStyle = pw.TextStyle(
+  static final subtitleStyle = pw.TextStyle(
     fontSize: 24,
     fontWeight: pw.FontWeight.bold,
     color: accentColor,
   );
 
-  static const pw.TextStyle sectionTitleStyle = pw.TextStyle(
+  static final sectionTitleStyle = pw.TextStyle(
     fontSize: 18,
     fontWeight: pw.FontWeight.bold,
     color: textColor,
   );
 
-  static const pw.TextStyle bodyTextStyle = pw.TextStyle(
+  static final bodyTextStyle = pw.TextStyle(
     fontSize: 12,
     color: textColor,
   );
 
-  static const pw.TextStyle italicTextStyle = pw.TextStyle(
+  static final italicTextStyle = pw.TextStyle(
     fontSize: 14,
     fontStyle: pw.FontStyle.italic,
     color: lightTextColor,
   );
 
-  static const pw.TextStyle labelStyle = pw.TextStyle(
+  static final labelStyle = pw.TextStyle(
     fontWeight: pw.FontWeight.bold,
     color: accentColor,
   );
 
   // Bords et décoration
-  static const pw.EdgeInsets containerPadding = pw.EdgeInsets.all(10);
-  static const pw.EdgeInsets tableCellPadding = pw.EdgeInsets.all(5);
+  static const containerPadding = pw.EdgeInsets.all(10);
+  static const tableCellPadding = pw.EdgeInsets.all(5);
   static const double dividerThickness = 2.0;
   static const double borderRadius = 8.0;
 
