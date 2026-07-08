@@ -23,7 +23,8 @@ class ContentXmlBuilder {
     xml.writeln('                         xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"');
     xml.writeln('                         xmlns:xlink="http://www.w3.org/1999/xlink"');
     xml.writeln('                         xmlns:dc="http://purl.org/dc/elements/1.1/"');
-    xml.writeln('                         xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">');
+    xml.writeln('                         xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"');
+    xml.writeln('                         xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">');
     xml.writeln('  <office:scripts/>');
     xml.writeln('  <office:font-face-decls>');
     xml.writeln('    <style:font-face style:name="Liberation Sans" svg:font-family="Liberation Sans"/>');
@@ -158,7 +159,7 @@ class ContentXmlBuilder {
   static void _addEndPage(StringBuffer xml, Trek trek, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final year = DateTime.now().year;
-    final thankYouMessage = _escapeXml("Merci d'avoir vecu cette aventure !");
+    final thankYouMessage = _escapeXml("Merci d\'avoir vecu cette aventure !");
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:text-box svg:x="1cm" svg:y="8cm" svg:width="26cm" svg:height="4cm">');
     xml.writeln('          <text:p text:style-name="P1">Fin du recit</text:p>');
@@ -175,6 +176,6 @@ class ContentXmlBuilder {
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
-        .replaceAll("'", '&apos;');
+        .replaceAll('', '&apos;');
   }
 }
