@@ -11,7 +11,7 @@ import 'utils/filename_utils.dart';
 import 'utils/image_optimizer.dart';
 
 /// Service unifié pour exporter les treks dans différents formats
-/// Formats supportés : PDF (texte seulement), PDF avec images, ODP (OpenDocument Presentation)
+/// Formats supportés : PDF (texte seulement), ODP (OpenDocument Presentation)
 /// 
 /// Ce service agit comme une façade pour les différents services d'export.
 class ExportService {
@@ -37,15 +37,9 @@ class ExportService {
     return _pdfExportService.exportTrekToPdfTextOnly(trek);
   }
 
-  /// Génère un PDF avec images en arrière-plan
-  /// Utilise un isolate pour éviter les problèmes de mémoire
-  Future<File> exportTrekToPdfWithImages(Trek trek) async {
-    return _pdfExportService.exportTrekToPdfWithImages(trek);
-  }
-
-  /// Imprime le PDF
-  Future<void> printTrekPdf(Trek trek, {bool withImages = true}) async {
-    return _pdfExportService.printTrekPdf(trek, withImages: withImages);
+  /// Imprime le PDF (texte seulement)
+  Future<void> printTrekPdf(Trek trek) async {
+    return _pdfExportService.printTrekPdf(trek);
   }
 
   // ===========================================================================
