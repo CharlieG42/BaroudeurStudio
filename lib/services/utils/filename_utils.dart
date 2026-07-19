@@ -5,7 +5,7 @@ class FilenameUtils {
   /// Remplace tous les caractères non alphanumériques par des underscores
   static String generateExportFilename(String title, String extension) {
     // Remplacer tous les caractères non alphanumériques, espaces, tirets
-    // par des underscores. Utilisation de strings normales avec backslashes échappés
+    // par des underscores
     String sanitized = title.replaceAll(RegExp('[^\w\s-]'), '_');
     
     // Remplacer les espaces par des underscores
