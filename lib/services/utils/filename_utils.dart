@@ -13,7 +13,8 @@ class FilenameUtils {
     sanitized = sanitized.replaceAll(RegExp(' +'), '_');
     
     // Supprimer les underscores en début et fin
-    sanitized = sanitized.trim().replaceAll(RegExp('^_+|_+$'), '');
+    // Utilisation de raw string pour éviter les problèmes avec $
+    sanitized = sanitized.trim().replaceAll(RegExp(r'^_+|_+$'), '');
     
     // Si vide après nettoyage, utiliser un nom par défaut
     if (sanitized.isEmpty) {
@@ -34,7 +35,8 @@ class FilenameUtils {
   static String sanitizeFilename(String input) {
     String sanitized = input.replaceAll(RegExp('[^a-zA-Z0-9 _-]'), '_');
     sanitized = sanitized.replaceAll(RegExp(' +'), '_');
-    sanitized = sanitized.trim().replaceAll(RegExp('^_+|_+$'), '');
+    // Utilisation de raw string pour éviter les problèmes avec $
+    sanitized = sanitized.trim().replaceAll(RegExp(r'^_+|_+$'), '');
     
     if (sanitized.isEmpty) {
       sanitized = 'fichier';
