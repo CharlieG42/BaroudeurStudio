@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/trek.dart';
 import '../services/export_service.dart';
+import '../services/utils/filename_utils.dart';
 
 /// Bouton pour exporter un trek dans différents formats
 /// Offre 2 options : PDF texte seulement, ODP (OpenDocument Presentation)
@@ -110,18 +111,25 @@ class ExportPdfButton extends StatelessWidget {
 
   /// Affiche une boîte de dialogue pour enregistrer le fichier avec "Enregistrer sous"
   /// Sur Windows: utilise FilePicker pour choisir l'emplacement
-  /// Sur mobile: utilise le partage ou enregistre dans Downloads
+  /// Sur mobile: utilise le partage
   Future<void> _saveFileWithDialog(BuildContext context, File exportFile) async {
     final fileName = exportFile.path.split(Platform.pathSeparator).last;
     final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+    
+    // Extraire l'extension
+    final extension = fileName.split('.').last;
+    
+    // Nettoyer le nom de fichier pour Windows (au cas où)
+    final baseName = fileName.substring(0, fileName.length - extension.length - 1);
+    final sanitizedFileName = FilenameUtils.sanitizeFilename(baseName) + '.' + extension;
 
     if (isWindows) {
       // Sur Windows: utilise FilePicker pour "Enregistrer sous"
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: 'Enregistrer le fichier',
-        fileName: fileName,
+        fileName: sanitizedFileName,
         bytes: await exportFile.readAsBytes(),
-        allowedExtensions: fileName.endsWith('.pdf') ? ['pdf'] : ['odp'],
+        allowedExtensions: [extension],
       );
 
       if (savePath != null) {
