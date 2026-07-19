@@ -1,5 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/trek.dart';
@@ -89,7 +92,7 @@ class ExportPdfButton extends StatelessWidget {
       
       if (exportFile != null) {
         scaffoldMessenger.hideCurrentSnackBar();
-        await _showExportResultDialog(context, exportFile);
+        await _saveFileWithDialog(context, exportFile);
       }
       
       onExportComplete?.call();
@@ -105,6 +108,43 @@ class ExportPdfButton extends StatelessWidget {
     }
   }
 
+  /// Affiche une boîte de dialogue pour enregistrer le fichier avec "Enregistrer sous"
+  /// Sur Windows: utilise FilePicker pour choisir l'emplacement
+  /// Sur mobile: utilise le partage ou enregistre dans Downloads
+  Future<void> _saveFileWithDialog(BuildContext context, File exportFile) async {
+    final fileName = exportFile.path.split(Platform.pathSeparator).last;
+    final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+
+    if (isWindows) {
+      // Sur Windows: utilise FilePicker pour "Enregistrer sous"
+      final savePath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Enregistrer le fichier',
+        fileName: fileName,
+        bytes: await exportFile.readAsBytes(),
+        allowedExtensions: fileName.endsWith('.pdf') ? ['pdf'] : ['odp'],
+      );
+
+      if (savePath != null) {
+        // Copier le fichier vers le nouvel emplacement
+        final savedFile = File(savePath);
+        await savedFile.writeAsBytes(await exportFile.readAsBytes());
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Fichier enregistré: ' + savePath.split(Platform.pathSeparator).last),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } else {
+      // Sur mobile: utiliser le partage
+      await _showExportResultDialog(context, exportFile);
+    }
+  }
+
+  /// Dialogue pour mobile (partage)
   Future<void> _showExportResultDialog(BuildContext context, File exportFile) async {
     final fileName = exportFile.path.split('/').last;
     final fileType = fileName.endsWith('.pdf') ? 'PDF' : 'ODP';
@@ -119,10 +159,11 @@ class ExportPdfButton extends StatelessWidget {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Fermer'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Partager'),
-          ),
+          if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows)
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Partager'),
+            ),
         ],
       ),
     );
