@@ -1,17 +1,14 @@
 /// Utilitaires pour la gestion des noms de fichiers
 /// Nettoie les chaînes pour éviter les caractères interdits sous Windows
 class FilenameUtils {
-  /// Caractères interdits sous Windows: <>:"/|?* et caractères de contrôle (0-31)
-  static const _forbiddenChars = ['<', '>', ':', '"', '/', '\', '|', '?', '*'];
-  static final _forbiddenCharRegex = RegExp('[<>:"\/|?*\x00-\x1f]');
-
   /// Génère un nom de fichier valide pour l'export
-  /// Remplace les caractères interdits par des underscores
+  /// Remplace tous les caractères non alphanumériques par des underscores
   static String generateExportFilename(String title, String extension) {
-    // Remplacer les caractères interdits
-    String sanitized = title.replaceAll(_forbiddenCharRegex, '_');
+    // Remplacer tous les caractères non alphanumériques, espaces, tirets
+    // par des underscores. Utilisation de strings normales avec backslashes échappés
+    String sanitized = title.replaceAll(RegExp('[^\w\s-]'), '_');
     
-    // Remplacer les espaces multiples par un seul underscore
+    // Remplacer les espaces par des underscores
     sanitized = sanitized.replaceAll(RegExp('\s+'), '_');
     
     // Supprimer les underscores en début et fin
@@ -23,7 +20,7 @@ class FilenameUtils {
     }
     
     // Limiter la longueur (Windows: 255 chars max, moins l'extension)
-    final maxLength = 200; // Laisse de la marge pour le chemin complet
+    final maxLength = 200;
     if (sanitized.length > maxLength) {
       sanitized = sanitized.substring(0, maxLength);
     }
@@ -34,7 +31,7 @@ class FilenameUtils {
 
   /// Nettoie une chaîne pour être utilisée comme nom de fichier
   static String sanitizeFilename(String input) {
-    String sanitized = input.replaceAll(_forbiddenCharRegex, '_');
+    String sanitized = input.replaceAll(RegExp('[^\w\s-]'), '_');
     sanitized = sanitized.replaceAll(RegExp('\s+'), '_');
     sanitized = sanitized.trim().replaceAll(RegExp('^_+|_+$'), '');
     
