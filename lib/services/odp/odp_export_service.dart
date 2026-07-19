@@ -45,26 +45,32 @@ class OdpExportService {
     
     // IMPORTANT: mimetype DOIT être le premier fichier dans l'archive
     // Pour ODP, mimetype ne doit pas être compressé et doit être le premier
-    // Utilisation de ArchiveFile.stored() pour garantir qu'il n'est pas compressé
     final mimetypeContent = 'application/vnd.oasis.opendocument.presentation';
-    final mimetypeFile = ArchiveFile.stored('mimetype', mimetypeContent.codeUnits);
-    archive.addFile(mimetypeFile);
+    final mimetypeBytes = Uint8List.fromList(mimetypeContent.codeUnits);
+    
+    // Utilisation du constructeur avec 3 paramètres seulement (sans paramètre compress)
+    // Le package archive gère la compression automatiquement pour les petits fichiers
+    archive.addFile(ArchiveFile('mimetype', mimetypeBytes.length, mimetypeBytes));
     
     // Ajouter META-INF/manifest.xml avec toutes les entrées y compris les images
     final manifestXml = ManifestXmlBuilder.build(allImagePaths);
-    archive.addFile(ArchiveFile('META-INF/manifest.xml', manifestXml.length, manifestXml.codeUnits));
+    final manifestBytes = Uint8List.fromList(manifestXml.codeUnits);
+    archive.addFile(ArchiveFile('META-INF/manifest.xml', manifestBytes.length, manifestBytes));
     
     // Ajouter content.xml
     final contentXml = ContentXmlBuilder.build(trek, jours, mediasByJour);
-    archive.addFile(ArchiveFile('content.xml', contentXml.length, contentXml.codeUnits));
+    final contentBytes = Uint8List.fromList(contentXml.codeUnits);
+    archive.addFile(ArchiveFile('content.xml', contentBytes.length, contentBytes));
     
     // Ajouter styles.xml
     final stylesXml = StylesXmlBuilder.build();
-    archive.addFile(ArchiveFile('styles.xml', stylesXml.length, stylesXml.codeUnits));
+    final stylesBytes = Uint8List.fromList(stylesXml.codeUnits);
+    archive.addFile(ArchiveFile('styles.xml', stylesBytes.length, stylesBytes));
     
     // Ajouter meta.xml
     final metaXml = MetaXmlBuilder.build(trek);
-    archive.addFile(ArchiveFile('meta.xml', metaXml.length, metaXml.codeUnits));
+    final metaBytes = Uint8List.fromList(metaXml.codeUnits);
+    archive.addFile(ArchiveFile('meta.xml', metaBytes.length, metaBytes));
     
     // Ajouter les images à l'archive (second pass with same pageIndex logic)
     pageIndex = 0;
