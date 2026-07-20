@@ -77,18 +77,26 @@ class ContentXmlBuilder {
     final region = _escapeXml(trek.region);
     final country = _escapeXml(trek.pays);
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="4cm" svg:width="26cm" svg:height="2cm">');
-    xml.writeln('          <text:p text:style-name="P1">Les Baroudeurs</text:p>');
-    xml.writeln('        </draw:text-box>');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="7cm" svg:width="26cm" svg:height="1cm">');
-    xml.writeln('          <text:p text:style-name="P2">$title</text:p>');
-    xml.writeln('        </draw:text-box>');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="9cm" svg:width="26cm" svg:height="1cm">');
-    xml.writeln('          <text:p text:style-name="P3">$region, $country</text:p>');
-    xml.writeln('        </draw:text-box>');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="11cm" svg:width="26cm" svg:height="1cm">');
-    xml.writeln('          <text:p text:style-name="P3">Un recit de voyage</text:p>');
-    xml.writeln('        </draw:text-box>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="4cm" svg:width="26cm" svg:height="2cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P1">Les Baroudeurs</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="7cm" svg:width="26cm" svg:height="1cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P2">$title</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="9cm" svg:width="26cm" svg:height="1cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P3">$region, $country</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="11cm" svg:width="26cm" svg:height="1cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P3">Un recit de voyage</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
     xml.writeln('      </draw:page>');
   }
 
@@ -98,21 +106,25 @@ class ContentXmlBuilder {
     final startDate = dateFormat.format(dateDebut);
     final endDate = dateFormat.format(dateFin);
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="2cm" svg:width="26cm" svg:height="1cm">');
-    xml.writeln('          <text:p text:style-name="P2">$title</text:p>');
-    xml.writeln('        </draw:text-box>');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="4cm" svg:width="26cm" svg:height="10cm">');
-    xml.writeln('          <text:p text:style-name="P4">Du: $startDate</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Au: $endDate</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Duree: $duree jour(s)</text:p>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="2cm" svg:width="26cm" svg:height="1cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P2">$title</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="4cm" svg:width="26cm" svg:height="10cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P4">Du: $startDate</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Au: $endDate</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Duree: $duree jour(s)</text:p>');
     if (trek.distanceKm != null) {
-      xml.writeln('          <text:p text:style-name="P4">Distance: ' + trek.distanceKm!.toStringAsFixed(1) + ' km</text:p>');
+      xml.writeln('            <text:p text:style-name="P4">Distance: ' + trek.distanceKm!.toStringAsFixed(1) + ' km</text:p>');
     }
     if (trek.denivelePositifM != null) {
-      xml.writeln('          <text:p text:style-name="P4">Denivele: ' + trek.denivelePositifM.toString() + ' m</text:p>');
+      xml.writeln('            <text:p text:style-name="P4">Denivele: ' + trek.denivelePositifM.toString() + ' m</text:p>');
     }
-    xml.writeln('          <text:p text:style-name="P4">Compagnons: $companions</text:p>');
-    xml.writeln('        </draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P4">Compagnons: $companions</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
     xml.writeln('      </draw:page>');
   }
 
@@ -129,12 +141,14 @@ class ContentXmlBuilder {
     final decouvertes = _escapeXml(jour.decouvertes);
     final distance = jour.distanceKm?.toStringAsFixed(1) ?? 'N/A';
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="1cm" svg:width="26cm" svg:height="1cm">');
-    xml.writeln('          <text:p text:style-name="P2">$dateStr</text:p>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="1cm" svg:width="26cm" svg:height="1cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P2">$dateStr</text:p>');
     if (jour.lieuDepart.isNotEmpty || jour.lieuArrivee.isNotEmpty) {
-      xml.writeln('          <text:p text:style-name="P3">$depart -> $arrivee</text:p>');
+      xml.writeln('            <text:p text:style-name="P3">$depart -> $arrivee</text:p>');
     }
-    xml.writeln('        </draw:text-box>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
     for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
       final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
       final yPosition = 3 + mediaIndex * 8;
@@ -143,16 +157,18 @@ class ContentXmlBuilder {
       xml.writeln('        </draw:frame>');
     }
     final contentY = 3 + medias.length * 8 + 1;
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="' + contentY.toString() + 'cm" svg:width="26cm" svg:height="10cm">');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="' + contentY.toString() + 'cm" svg:width="26cm" svg:height="10cm">');
+    xml.writeln('          <draw:text-box>');
     if (jour.resume.isNotEmpty) {
-      xml.writeln('          <text:p text:style-name="P4">Recit du jour: $resume</text:p>');
+      xml.writeln('            <text:p text:style-name="P4">Recit du jour: $resume</text:p>');
     }
-    xml.writeln('          <text:p text:style-name="P4">Distance: $distance km</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Meteo: $meteo</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Emotions: $emotions</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Difficultes: $difficultes</text:p>');
-    xml.writeln('          <text:p text:style-name="P4">Decouvertes: $decouvertes</text:p>');
-    xml.writeln('        </draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P4">Distance: $distance km</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Meteo: $meteo</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Emotions: $emotions</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Difficultes: $difficultes</text:p>');
+    xml.writeln('            <text:p text:style-name="P4">Decouvertes: $decouvertes</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
     xml.writeln('      </draw:page>');
   }
 
@@ -161,12 +177,14 @@ class ContentXmlBuilder {
     final year = DateTime.now().year;
     final thankYouMessage = _escapeXml("Merci d\'avoir vecu cette aventure !");
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
-    xml.writeln('        <draw:text-box svg:x="1cm" svg:y="8cm" svg:width="26cm" svg:height="4cm">');
-    xml.writeln('          <text:p text:style-name="P1">Fin du recit</text:p>');
-    xml.writeln('          <text:p text:style-name="P2">$title</text:p>');
-    xml.writeln('          <text:p text:style-name="P3">$thankYouMessage</text:p>');
-    xml.writeln('          <text:p text:style-name="P5">Les Baroudeurs - $year</text:p>');
-    xml.writeln('        </draw:text-box>');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="8cm" svg:width="26cm" svg:height="4cm">');
+    xml.writeln('          <draw:text-box>');
+    xml.writeln('            <text:p text:style-name="P1">Fin du recit</text:p>');
+    xml.writeln('            <text:p text:style-name="P2">$title</text:p>');
+    xml.writeln('            <text:p text:style-name="P3">$thankYouMessage</text:p>');
+    xml.writeln('            <text:p text:style-name="P5">Les Baroudeurs - $year</text:p>');
+    xml.writeln('          </draw:text-box>');
+    xml.writeln('        </draw:frame>');
     xml.writeln('      </draw:page>');
   }
 
@@ -176,6 +194,6 @@ class ContentXmlBuilder {
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
-        .replaceAll('', '&apos;');
+        .replaceAll("'", '&apos;');
   }
 }

@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 /// Widget d'enregistrement de notes vocales avec transcription automatique
-/// via la reconnaissance vocale native du système (Android : moteur Google
-/// ou équivalent installé sur l'appareil).
-///
-/// Le texte transcrit est ajouté au [controller] fourni — l'utilisateur
-/// peut ensuite le modifier librement comme n'importe quel champ de texte.
-///
-/// Note : ce service dépend du moteur de reconnaissance vocale du
-/// téléphone, qui nécessite généralement une connexion internet active
-/// pour une bonne qualité de transcription (le mode hors-ligne existe
-/// mais dépend de packs de langue téléchargés séparément sur l'appareil).
+/// via la reconnaissance vocale native du système.
+/// NOTE: Sur Windows, la reconnaissance vocale est désactivée (pas de support
+/// des permissions microphone dans le plugin permission_handler pour VS 2022 18.x)
 class VoiceNoteRecorder extends StatefulWidget {
   final TextEditingController controller;
 
@@ -24,7 +17,6 @@ class VoiceNoteRecorder extends StatefulWidget {
 
 class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
   late final stt.SpeechToText _speech;
-
   bool _speechAvailable = false;
   bool _isListening = false;
   String _statusMessage = '';
@@ -33,6 +25,22 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    // Initialisation immédiate pour Windows (pas besoin de permission)
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows) {
+      _speech.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          setState(() {
+            _isListening = false;
+            _statusMessage = 'Erreur : ${error.errorMsg}';
+          });
+        },
+      ).then((available) => setState(() => _speechAvailable = available));
+    }
   }
 
   @override
@@ -43,78 +51,52 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
     super.dispose();
   }
 
-  Future<bool> _ensureMicPermission() async {
-    final status = await Permission.microphone.status;
-    if (status.isGranted) return true;
-
-    final result = await Permission.microphone.request();
-    return result.isGranted;
-  }
-
   Future<void> _startListening() async {
-    final hasPermission = await _ensureMicPermission();
-    if (!hasPermission) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Permission micro refusée. Active-la dans les paramètres de '
-              'l\'app pour utiliser la transcription vocale.',
+    // Sur Windows, on essaie directement sans vérifier les permissions
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows) {
+      if (!_speechAvailable) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Reconnaissance vocale indisponible sur cet appareil.',
+              ),
             ),
-          ),
-        );
-      }
-      return;
-    }
-
-    _speechAvailable = await _speech.initialize(
-      onStatus: (status) {
-        if (status == 'done' || status == 'notListening') {
-          setState(() => _isListening = false);
-        }
-      },
-      onError: (error) {
-        setState(() {
-          _isListening = false;
-          _statusMessage = 'Erreur : ${error.errorMsg}';
-        });
-      },
-    );
-
-    if (!_speechAvailable) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Reconnaissance vocale indisponible sur cet appareil.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _isListening = true;
-      _statusMessage = 'Écoute en cours... parle maintenant';
-    });
-
-    await _speech.listen(
-      onResult: (result) {
-        // On ajoute le texte reconnu au champ existant plutôt que de
-        // l'écraser, pour permettre plusieurs sessions d'enregistrement
-        // successives sur la même journée.
-        if (result.finalResult && result.recognizedWords.isNotEmpty) {
-          final existing = widget.controller.text;
-          final separator = existing.isEmpty ? '' : ' ';
-          widget.controller.text = '$existing$separator${result.recognizedWords}';
-          widget.controller.selection = TextSelection.fromPosition(
-            TextPosition(offset: widget.controller.text.length),
           );
         }
-      },
-      //SpeechListenOptions.localeId: 'fr_FR',
-    );
+        return;
+      }
+
+      setState(() {
+        _isListening = true;
+        _statusMessage = 'Écoute en cours... parle maintenant';
+      });
+
+      await _speech.listen(
+        onResult: (result) {
+          if (result.finalResult && result.recognizedWords.isNotEmpty) {
+            final existing = widget.controller.text;
+            final separator = existing.isEmpty ? '' : ' ';
+            widget.controller.text = '$existing$separator${result.recognizedWords}';
+            widget.controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: widget.controller.text.length),
+            );
+          }
+        },
+      );
+      return;
+    }
+
+    // Pour Android/iOS: on vérifie les permissions (à implémenter si tu réactives permission_handler)
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Reconnaissance vocale désactivée sur cette plateforme.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _stopListening() async {

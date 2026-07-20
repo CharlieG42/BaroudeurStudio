@@ -48,9 +48,12 @@ class OdpExportService {
     final mimetypeContent = 'application/vnd.oasis.opendocument.presentation';
     final mimetypeBytes = Uint8List.fromList(mimetypeContent.codeUnits);
     
-    // Utilisation du constructeur avec 3 paramètres seulement (sans paramètre compress)
-    // Le package archive gère la compression automatiquement pour les petits fichiers
-    archive.addFile(ArchiveFile('mimetype', mimetypeBytes.length, mimetypeBytes));
+    // Le fichier mimetype DOIT être stocké sans compression (obligatoire pour le format ODP).
+    // Le package archive ne prend pas ce réglage dans le constructeur : il faut positionner
+    // la propriété `compress` sur l'instance avant de l'ajouter à l'archive.
+    final mimetypeFile = ArchiveFile('mimetype', mimetypeBytes.length, mimetypeBytes);
+    mimetypeFile.compress = false;
+    archive.addFile(mimetypeFile);
     
     // Ajouter META-INF/manifest.xml avec toutes les entrées y compris les images
     final manifestXml = ManifestXmlBuilder.build(allImagePaths);

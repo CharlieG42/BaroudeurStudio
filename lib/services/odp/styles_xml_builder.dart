@@ -13,7 +13,8 @@ class StylesXmlBuilder {
 <office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
                         xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
                         xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
-                        xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0">
+                        xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+                        xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
   <office:styles>
     <draw:page-layout draw:name="AL1">
       <draw:page-layout-properties draw:page-width="28cm" draw:page-height="21cm" draw:print-orientation="landscape"/>

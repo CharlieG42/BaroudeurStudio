@@ -12,14 +12,8 @@ class FilenameUtils {
     // Remplacer les espaces multiples par un seul underscore
     sanitized = sanitized.replaceAll(RegExp(' +'), '_');
     
-    // Supprimer les underscores en début et fin (sans utiliser $)
-    // Méthode manuelle pour éviter les problèmes avec $ sous Windows
-    while (sanitized.startsWith('_')) {
-      sanitized = sanitized.substring(1);
-    }
-    while (sanitized.endsWith('_')) {
-      sanitized = sanitized.substring(0, sanitized.length - 1);
-    }
+    // Supprimer les underscores en début et fin
+    sanitized = sanitized.trim().replaceAll(RegExp(r'^_+|_+$'), '');
     
     // Si vide après nettoyage, utiliser un nom par défaut
     if (sanitized.isEmpty) {
@@ -40,14 +34,7 @@ class FilenameUtils {
   static String sanitizeFilename(String input) {
     String sanitized = input.replaceAll(RegExp('[^a-zA-Z0-9 _-]'), '_');
     sanitized = sanitized.replaceAll(RegExp(' +'), '_');
-    
-    // Supprimer les underscores en début et fin (sans utiliser $)
-    while (sanitized.startsWith('_')) {
-      sanitized = sanitized.substring(1);
-    }
-    while (sanitized.endsWith('_')) {
-      sanitized = sanitized.substring(0, sanitized.length - 1);
-    }
+    sanitized = sanitized.trim().replaceAll(RegExp(r'^_+|_+$'), '');
     
     if (sanitized.isEmpty) {
       sanitized = 'fichier';
