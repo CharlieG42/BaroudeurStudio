@@ -17,10 +17,10 @@ class StylesXmlBuilder {
                         xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
   <office:styles>
     <draw:page-layout draw:name="AL1">
-      <draw:page-layout-properties draw:page-width="28cm" draw:page-height="21cm" draw:print-orientation="landscape"/>
+      <draw:page-layout-properties draw:page-width="21cm" draw:page-height="28cm" draw:print-orientation="portrait"/>
     </draw:page-layout>
     <style:page-layout style:name="PM1">
-      <style:page-layout-properties fo:page-width="28cm" fo:page-height="21cm" style:print-orientation="landscape"/>
+      <style:page-layout-properties fo:page-width="21cm" fo:page-height="28cm" style:print-orientation="portrait"/>
     </style:page-layout>
     <style:style style:name="DP1" style:family="drawing-page">
       <style:drawing-page-properties draw:page-layout-name="AL1" draw:background-color="''' + secondaryColor + '''" />
