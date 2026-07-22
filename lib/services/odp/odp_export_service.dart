@@ -38,18 +38,19 @@ class OdpExportService {
     final jours = await DatabaseHelper.instance.getJoursForTrek(trek.id!);
     
     // Récupérer les médias par jour de manière asynchrone et parallèle
-    final mediasByJourFuture = <int, Future<List<Media>>>{};
+    final mediasByJour = <int, List<Media>>{};
+    
+    // Créer une liste de futures pour tous les appels getMediasForJour
+    final mediaFutures = <Future<void>>[];
     for (final jour in jours) {
-      mediasByJourFuture[jour.id!] = DatabaseHelper.instance.getMediasForJour(jour.id!);
+      final future = DatabaseHelper.instance.getMediasForJour(jour.id!).then((medias) {
+        mediasByJour[jour.id!] = medias;
+      });
+      mediaFutures.add(future);
     }
     
-    // Attendre tous les résultats
-    final mediasByJour = <int, List<Media>>{};
-    await Future.wait(mediasByJourFuture.map((key, value) => MapEntry(key, value))).then((entries) {
-      for (final entry in entries.entries) {
-        mediasByJour[entry.key] = entry.value;
-      }
-    });
+    // Attendre que tous les appels soient terminés
+    await Future.wait(mediaFutures);
     
     // Collecter tous les chemins d'images (doit correspondre à la logique de content_xml_builder)
     final allImagePaths = <String>[];
