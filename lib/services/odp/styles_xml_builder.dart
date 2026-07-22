@@ -16,12 +16,6 @@ class StylesXmlBuilder {
                         xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
                         xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
   <office:styles>
-    <draw:page-layout draw:name="AL1">
-      <draw:page-layout-properties draw:page-width="21cm" draw:page-height="28cm" draw:print-orientation="portrait"/>
-    </draw:page-layout>
-    <style:page-layout style:name="PM1">
-      <style:page-layout-properties fo:page-width="21cm" fo:page-height="28cm" style:print-orientation="portrait"/>
-    </style:page-layout>
     <style:style style:name="DP1" style:family="drawing-page">
       <style:drawing-page-properties draw:page-layout-name="AL1" draw:background-color="''' + secondaryColor + '''" />
     </style:style>
@@ -44,7 +38,14 @@ class StylesXmlBuilder {
       <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center" />
     </style:style>
   </office:styles>
-  <office:automatic-styles />
+  <office:automatic-styles>
+    <draw:page-layout draw:name="AL1">
+      <draw:page-layout-properties draw:page-width="21cm" draw:page-height="28cm" draw:print-orientation="portrait"/>
+    </draw:page-layout>
+    <style:page-layout style:name="PM1">
+      <style:page-layout-properties fo:page-width="21cm" fo:page-height="28cm" style:print-orientation="portrait"/>
+    </style:page-layout>
+  </office:automatic-styles>
   <office:master-styles>
     <style:master-page style:name="Default" style:page-layout-name="PM1">
       <draw:page draw:name="Default" draw:style-name="DP1" draw:master-page-name="" />
