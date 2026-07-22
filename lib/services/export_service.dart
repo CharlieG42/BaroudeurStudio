@@ -1,19 +1,14 @@
 import 'dart:typed_data';
 import 'dart:io';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../models/trek.dart';
-import 'pdf/pdf_export_service.dart';
 import 'odp/odp_export_service.dart';
 import 'utils/filename_utils.dart';
 import 'utils/image_optimizer.dart';
 
-/// Service unifié pour exporter les treks dans différents formats
-/// Formats supportés : PDF (texte seulement), ODP (OpenDocument Presentation)
+/// Service unifié pour exporter les treks au format ODP
 /// 
-/// Ce service agit comme une façade pour les différents services d'export.
+/// Ce service agit comme une façade pour le service d'export ODP.
 class ExportService {
   static final ExportService _instance = ExportService._internal();
   
@@ -21,26 +16,8 @@ class ExportService {
   
   ExportService._internal();
 
-  // Service PDF
-  final PdfExportService _pdfExportService = PdfExportService();
-  
   // Service ODP
   final OdpExportService _odpExportService = OdpExportService();
-
-  // ===========================================================================
-  // EXPORT PDF
-  // ===========================================================================
-
-  /// Génère un PDF avec le texte uniquement (pas d'images)
-  /// Format rapide, sans risque de mémoire
-  Future<File> exportTrekToPdfTextOnly(Trek trek) async {
-    return _pdfExportService.exportTrekToPdfTextOnly(trek);
-  }
-
-  /// Imprime le PDF (texte seulement)
-  Future<void> printTrekPdf(Trek trek) async {
-    return _pdfExportService.printTrekPdf(trek);
-  }
 
   // ===========================================================================
   // EXPORT ODP (OpenDocument Presentation)
@@ -48,6 +25,7 @@ class ExportService {
 
   /// Génère un ODP (OpenDocument Presentation) modifiable
   /// Format idéal pour les ajustements manuels, compatible avec LibreOffice
+  /// Le document est systématiquement en orientation portrait (21cm x 28cm)
   Future<File> exportTrekToOdp(Trek trek) async {
     return _odpExportService.exportTrekToOdp(trek);
   }

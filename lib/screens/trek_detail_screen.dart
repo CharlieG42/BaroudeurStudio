@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../db/database_helper.dart';
 import '../models/trek.dart';
 import '../models/jour_trek.dart';
-import '../widgets/export_pdf_button.dart';
+import '../widgets/export_odp_button.dart';
 import 'trek_form_screen.dart';
 import 'jour_form_screen.dart';
 
@@ -151,7 +151,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
       appBar: AppBar(
         title: Text(_trek.titre),
         actions: [
-          ExportPdfButton(trek: _trek),
+          ExportOdpButton(trek: _trek),
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Modifier le trek',

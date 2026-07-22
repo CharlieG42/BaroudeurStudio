@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'export_pdf_button.dart';
+import 'export_odp_button.dart';
 import 'compression_settings_dialog.dart';
 import '../models/trek.dart';
 
-/// Barre d'outils pour l'export et les paramètres
+/// Barre d'outils pour l'export ODP et les paramètres
 /// À utiliser dans l'AppBar des écrans de trek
 class ExportButtonBar extends StatelessWidget {
   final Trek trek;
@@ -21,8 +21,8 @@ class ExportButtonBar extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Bouton d'export
-        ExportPdfButton(
+        // Bouton d'export ODP
+        ExportOdpButton(
           trek: trek,
           onExportComplete: onExportComplete,
         ),

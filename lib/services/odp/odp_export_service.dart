@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../models/trek.dart';
 import '../../models/jour_trek.dart';
@@ -16,23 +17,45 @@ import 'meta_xml_builder.dart';
 import 'content_xml_builder.dart';
 
 /// Service d'export ODP (OpenDocument Presentation) pour les treks
+/// 
 /// Utilise le package archive pour créer des fichiers ZIP conformes au standard ODP
+/// 
+/// IMPORTANT:
+/// - Tous les documents générés sont systématiquement en orientation PORTRAIT (21cm x 28cm)
+/// - Le chargement des images se fait de manière asynchrone pour éviter les problèmes de mémoire
+/// - Les images sont optimisées avant d'être ajoutées à l'archive
 class OdpExportService {
   /// Génère un fichier ODP à partir d'un trek
+  /// 
+  /// Le document généré a les caractéristiques suivantes:
+  /// - Orientation: PORTRAIT (21cm x 28cm) - garantie par styles.xml et content.xml
+  /// - Format: OpenDocument Presentation (compatible LibreOffice/OpenOffice)
+  /// - Contenu: Toutes les informations du trek + images des médias
+  /// 
+  /// Retourne le fichier ODP généré
   Future<File> exportTrekToOdp(Trek trek) async {
     // Récupérer les jours du trek
     final jours = await DatabaseHelper.instance.getJoursForTrek(trek.id!);
     
-    // Récupérer les médias par jour
-    final mediasByJour = <int, List<Media>>{};
-    final allImagePaths = <String>[];
+    // Récupérer les médias par jour de manière asynchrone et parallèle
+    final mediasByJourFuture = <int, Future<List<Media>>>{};
+    for (final jour in jours) {
+      mediasByJourFuture[jour.id!] = DatabaseHelper.instance.getMediasForJour(jour.id!);
+    }
     
-    // First pass: collect all image paths (must match content_xml_builder.dart logic)
+    // Attendre tous les résultats
+    final mediasByJour = <int, List<Media>>{};
+    await Future.wait(mediasByJourFuture.map((key, value) => MapEntry(key, value))).then((entries) {
+      for (final entry in entries.entries) {
+        mediasByJour[entry.key] = entry.value;
+      }
+    });
+    
+    // Collecter tous les chemins d'images (doit correspondre à la logique de content_xml_builder)
+    final allImagePaths = <String>[];
     int pageIndex = 0;
     for (final jour in jours) {
-      final medias = await DatabaseHelper.instance.getMediasForJour(jour.id!);
-      mediasByJour[jour.id!] = medias;
-      
+      final medias = mediasByJour[jour.id] ?? [];
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
         final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
         allImagePaths.add(imagePath);
@@ -48,9 +71,7 @@ class OdpExportService {
     final mimetypeContent = 'application/vnd.oasis.opendocument.presentation';
     final mimetypeBytes = Uint8List.fromList(mimetypeContent.codeUnits);
     
-    // Le fichier mimetype DOIT être stocké sans compression (obligatoire pour le format ODP).
-    // Le package archive ne prend pas ce réglage dans le constructeur : il faut positionner
-    // la propriété `compress` sur l'instance avant de l'ajouter à l'archive.
+    // Le fichier mimetype DOIT être stocké sans compression (obligatoire pour le format ODP)
     final mimetypeFile = ArchiveFile('mimetype', mimetypeBytes.length, mimetypeBytes);
     mimetypeFile.compress = false;
     archive.addFile(mimetypeFile);
@@ -75,25 +96,31 @@ class OdpExportService {
     final metaBytes = Uint8List.fromList(metaXml.codeUnits);
     archive.addFile(ArchiveFile('meta.xml', metaBytes.length, metaBytes));
     
-    // Ajouter les images à l'archive (second pass with same pageIndex logic)
+    // Ajouter les images à l'archive de manière asynchrone
     pageIndex = 0;
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
+      
+      // Traiter chaque média de manière asynchrone
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
         final media = medias[mediaIndex];
+        final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+        
         try {
+          // Charger l'image de manière asynchrone
           final file = File(media.cheminFichier);
-          final imageBytes = file.readAsBytesSync();
-          final optimizedBytes = ImageOptimizer.optimizeImage(
-            imageBytes, 
-            quality: AppConfig.imageCompressionQuality
+          final imageBytes = await file.readAsBytes();
+          
+          // Optimiser l'image dans un isolate pour éviter de bloquer l'UI
+          final optimizedBytes = await compute(
+            _optimizeImageInIsolate,
+            (imageBytes, AppConfig.imageCompressionQuality),
           );
           
-          final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
           archive.addFile(ArchiveFile(imagePath, optimizedBytes.length, optimizedBytes));
-          
         } catch (e) {
           // Ignorer si l'image ne peut pas être lue
+          debugPrint('Erreur lors du chargement de l\'image ${media.cheminFichier}: $e');
         }
       }
       pageIndex++;
@@ -112,5 +139,12 @@ class OdpExportService {
     }
     
     return file;
+  }
+  
+  /// Fonction pour optimiser une image dans un isolate
+  /// Cette fonction est conçue pour être appelée via compute()
+  static Uint8List _optimizeImageInIsolate((Uint8List, int) params) {
+    final (imageBytes, quality) = params;
+    return ImageOptimizer.optimizeImage(imageBytes, quality: quality);
   }
 }

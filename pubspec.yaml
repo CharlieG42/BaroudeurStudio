@@ -30,7 +30,7 @@ dependencies:
   uuid: ^4.4.0
   flutter_image_compress: ^2.3.0
 
-  # Image manipulation for PDF
+  # Image manipulation pour ODP
   image: ^4.1.4
 
   # GPS / GPX
@@ -40,9 +40,7 @@ dependencies:
   speech_to_text: ^7.0.0
   #permission_handler: ^11.3.1
 
-  # PDF Generation
-  pdf: ^3.10.0
-  printing: ^5.11.0
+  # Partage de fichiers
   share_plus: ^7.2.1
 
   # ZIP pour ODP

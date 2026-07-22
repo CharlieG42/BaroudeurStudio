@@ -4,9 +4,22 @@ import '../../models/jour_trek.dart';
 import '../../models/media.dart';
 
 /// Builder pour le fichier content.xml des documents ODP
+/// 
+/// IMPORTANT: Tous les documents générés utilisent la page maître "Default" 
+/// qui est configurée en orientation PORTRAIT (21cm x 28cm) dans styles.xml
+/// Chaque page (draw:page) référence draw:master-page-name="Default"
+/// 
 /// Ce builder gère correctement le pageIndex pour éviter les problèmes de scoping
 class ContentXmlBuilder {
   /// Génère le contenu XML du content.xml
+  /// 
+  /// Structure du document:
+  /// - Page de couverture (page 0)
+  /// - Page de titre avec les informations du trek (page 1)
+  /// - Une page par jour de trek avec ses médias (pages 2+)
+  /// - Page de fin (dernière page)
+  /// 
+  /// Toutes les pages utilisent la mise en page portrait définie dans styles.xml
   static String build(Trek trek, List<JourTrek> jours, Map<int, List<Media>> mediasByJour) {
     final dateFormat = DateFormat('yyyy-MM-dd');
     final dateDebut = DateTime.parse(trek.dateDebut);
@@ -15,6 +28,7 @@ class ContentXmlBuilder {
     
     final StringBuffer xml = StringBuffer();
     
+    // En-tête XML
     xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
     xml.writeln('<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"');
     xml.writeln('                         xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"');
@@ -49,12 +63,13 @@ class ContentXmlBuilder {
     xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"/>');
     xml.writeln('    </style:style>');
     xml.writeln('    <style:style style:name="graphic" style:family="graphic">');
-    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff"/>');
+    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center" />');
     xml.writeln('    </style:style>');
     xml.writeln('  </office:automatic-styles>');
     xml.writeln('  <office:body>');
     xml.writeln('    <office:presentation>');
 
+    // Génération des pages - toutes utilisent master-page-name="Default" (portrait)
     int pageIndex = 0;
     _addCoverPage(xml, trek, pageIndex);
     pageIndex++;
@@ -72,10 +87,14 @@ class ContentXmlBuilder {
     return xml.toString();
   }
 
+  /// Ajoute la page de couverture
+  /// Utilise la page maître "Default" configurée en portrait dans styles.xml
   static void _addCoverPage(StringBuffer xml, Trek trek, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final region = _escapeXml(trek.region);
     final country = _escapeXml(trek.pays);
+    
+    // draw:master-page-name="Default" garantit l'utilisation de la mise en page portrait
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="4cm" svg:width="26cm" svg:height="2cm">');
     xml.writeln('          <draw:text-box>');
@@ -100,11 +119,15 @@ class ContentXmlBuilder {
     xml.writeln('      </draw:page>');
   }
 
+  /// Ajoute la page de titre avec les informations du trek
+  /// Utilise la page maître "Default" configurée en portrait dans styles.xml
   static void _addTitlePage(StringBuffer xml, Trek trek, DateFormat dateFormat, DateTime dateDebut, DateTime dateFin, int duree, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final companions = _escapeXml(trek.compagnons.isNotEmpty ? trek.compagnons : 'Seul(e)');
     final startDate = dateFormat.format(dateDebut);
     final endDate = dateFormat.format(dateFin);
+    
+    // draw:master-page-name="Default" garantit l'utilisation de la mise en page portrait
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="2cm" svg:width="26cm" svg:height="1cm">');
     xml.writeln('          <draw:text-box>');
@@ -128,6 +151,13 @@ class ContentXmlBuilder {
     xml.writeln('      </draw:page>');
   }
 
+  /// Ajoute une page pour un jour de trek avec ses médias
+  /// Utilise la page maître "Default" configurée en portrait dans styles.xml
+  /// 
+  /// Mise en page:
+  /// - En-tête avec la date et le lieu (y=1cm)
+  /// - Images disposées verticalement (à partir de y=3cm)
+  /// - Contenu textuel en dessous des images
   static void _addJourPage(StringBuffer xml, JourTrek jour, List<Media> medias, int pageIndex) {
     final dateFormat = DateFormat('EEEE d MMMM yyyy', 'fr');
     final jourDate = DateTime.parse(jour.date);
@@ -140,6 +170,8 @@ class ContentXmlBuilder {
     final difficultes = _escapeXml(jour.difficultes);
     final decouvertes = _escapeXml(jour.decouvertes);
     final distance = jour.distanceKm?.toStringAsFixed(1) ?? 'N/A';
+    
+    // draw:master-page-name="Default" garantit l'utilisation de la mise en page portrait
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="1cm" svg:width="26cm" svg:height="1cm">');
     xml.writeln('          <draw:text-box>');
@@ -149,6 +181,8 @@ class ContentXmlBuilder {
     }
     xml.writeln('          </draw:text-box>');
     xml.writeln('        </draw:frame>');
+    
+    // Ajout des images
     for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
       final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
       final yPosition = 3 + mediaIndex * 8;
@@ -156,6 +190,8 @@ class ContentXmlBuilder {
       xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>');
       xml.writeln('        </draw:frame>');
     }
+    
+    // Contenu textuel sous les images
     final contentY = 3 + medias.length * 8 + 1;
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="' + contentY.toString() + 'cm" svg:width="26cm" svg:height="10cm">');
     xml.writeln('          <draw:text-box>');
@@ -172,10 +208,14 @@ class ContentXmlBuilder {
     xml.writeln('      </draw:page>');
   }
 
+  /// Ajoute la page de fin
+  /// Utilise la page maître "Default" configurée en portrait dans styles.xml
   static void _addEndPage(StringBuffer xml, Trek trek, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final year = DateTime.now().year;
     final thankYouMessage = _escapeXml("Merci d\'avoir vecu cette aventure !");
+    
+    // draw:master-page-name="Default" garantit l'utilisation de la mise en page portrait
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="8cm" svg:width="26cm" svg:height="4cm">');
     xml.writeln('          <draw:text-box>');
@@ -188,6 +228,7 @@ class ContentXmlBuilder {
     xml.writeln('      </draw:page>');
   }
 
+  /// Échappe les caractères spéciaux pour le XML
   static String _escapeXml(String text) {
     return text
         .replaceAll('&', '&amp;')
