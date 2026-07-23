@@ -50,16 +50,32 @@ class OdpExportService {
       }
     });
     
-    // Collecter tous les chemins d'images (doit correspondre à la logique de content_xml_builder)
+    // Collecter tous les chemins d'images et les médias valides
+    // IMPORTANT: Le pageIndex doit correspondre à celui utilisé dans content_xml_builder
+    // content_xml_builder utilise: 0=couverture, 1=titre, 2+=jours
     final allImagePaths = <String>[];
-    int pageIndex = 0;
+    final validMediasByJour = <int, List<Media>>{};
+    
+    // Page de couverture (pageIndex = 0) et page de titre (pageIndex = 1) n'ont pas d'images
+    // Les pages des jours commencent à pageIndex = 2
+    int jourPageIndex = 2; // Les jours commencent à la page 2
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
+      final validMedias = <Media>[];
+      
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-        final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
-        allImagePaths.add(imagePath);
+        // Vérifier que le fichier existe avant de l'ajouter
+        final mediaFile = File(medias[mediaIndex].cheminFichier);
+        if (await mediaFile.exists()) {
+          validMedias.add(medias[mediaIndex]);
+          final imagePath = 'Pictures/image_$jourPageIndex-$mediaIndex.jpg';
+          allImagePaths.add(imagePath);
+        } else {
+          debugPrint('Fichier image introuvable: ${medias[mediaIndex].cheminFichier}');
+        }
       }
-      pageIndex++;
+      validMediasByJour[jour.id!] = validMedias;
+      jourPageIndex++;
     }
     
     // Créer l'archive ZIP
@@ -80,8 +96,8 @@ class OdpExportService {
     final manifestBytes = Uint8List.fromList(manifestXml.codeUnits);
     archive.addFile(ArchiveFile('META-INF/manifest.xml', manifestBytes.length, manifestBytes));
     
-    // Ajouter content.xml
-    final contentXml = ContentXmlBuilder.build(trek, jours, mediasByJour);
+    // Ajouter content.xml - utilise validMediasByJour pour éviter les références aux images manquantes
+    final contentXml = ContentXmlBuilder.build(trek, jours, validMediasByJour);
     final contentBytes = Uint8List.fromList(contentXml.codeUnits);
     archive.addFile(ArchiveFile('content.xml', contentBytes.length, contentBytes));
     
@@ -96,14 +112,15 @@ class OdpExportService {
     archive.addFile(ArchiveFile('meta.xml', metaBytes.length, metaBytes));
     
     // Ajouter les images à l'archive de manière asynchrone
-    pageIndex = 0;
+    // Les images des jours commencent à pageIndex = 2 (après couverture et titre)
+    int currentPageIndex = 2;
     for (final jour in jours) {
-      final medias = mediasByJour[jour.id] ?? [];
+      final medias = validMediasByJour[jour.id] ?? [];
       
       // Traiter chaque média de manière asynchrone
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
         final media = medias[mediaIndex];
-        final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
+        final imagePath = 'Pictures/image_$currentPageIndex-$mediaIndex.jpg';
         
         try {
           // Charger l'image de manière asynchrone
@@ -118,11 +135,11 @@ class OdpExportService {
           
           archive.addFile(ArchiveFile(imagePath, optimizedBytes.length, optimizedBytes));
         } catch (e) {
-          // Ignorer si l'image ne peut pas être lue
+          // Ignorer si l'image ne peut pas être lue (déjà vérifié plus haut, mais au cas où)
           debugPrint('Erreur lors du chargement de l\'image ${media.cheminFichier}: $e');
         }
       }
-      pageIndex++;
+      currentPageIndex++;
     }
     
     // Générer le fichier ODP
