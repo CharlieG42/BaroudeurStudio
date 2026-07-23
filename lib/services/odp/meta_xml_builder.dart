@@ -18,9 +18,9 @@ class MetaXmlBuilder {
   <office:meta>
     <meta:initial-creator>Baroudeur Studio</meta:initial-creator>
     <dc:creator>Les Baroudeurs</dc:creator>
-    <meta:creation-date>''' + creationDate + '''</meta:creation-date>
-    <dc:date>''' + creationDate + '''</dc:date>
-    <dc:title>''' + title + '''</dc:title>
+    <meta:creation-date>$creationDate</meta:creation-date>
+    <dc:date>$creationDate</dc:date>
+    <dc:title>$title</dc:title>
     <dc:subject>Recit de voyage - Les Baroudeurs</dc:subject>
     <dc:description>Carnets de trek illustres pour la collection Les Baroudeurs</dc:description>
   </office:meta>

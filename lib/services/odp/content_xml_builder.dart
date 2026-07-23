@@ -63,7 +63,7 @@ class ContentXmlBuilder {
     xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"/>');
     xml.writeln('    </style:style>');
     xml.writeln('    <style:style style:name="graphic" style:family="graphic">');
-    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center" />');
+    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center"/>');
     xml.writeln('    </style:style>');
     xml.writeln('  </office:automatic-styles>');
     xml.writeln('  <office:body>');
@@ -140,10 +140,10 @@ class ContentXmlBuilder {
     xml.writeln('            <text:p text:style-name="P4">Au: $endDate</text:p>');
     xml.writeln('            <text:p text:style-name="P4">Duree: $duree jour(s)</text:p>');
     if (trek.distanceKm != null) {
-      xml.writeln('            <text:p text:style-name="P4">Distance: ' + trek.distanceKm!.toStringAsFixed(1) + ' km</text:p>');
+      xml.writeln('            <text:p text:style-name="P4">Distance: ${trek.distanceKm!.toStringAsFixed(1)} km</text:p>');
     }
     if (trek.denivelePositifM != null) {
-      xml.writeln('            <text:p text:style-name="P4">Denivele: ' + trek.denivelePositifM.toString() + ' m</text:p>');
+      xml.writeln('            <text:p text:style-name="P4">Denivele: ${trek.denivelePositifM} m</text:p>');
     }
     xml.writeln('            <text:p text:style-name="P4">Compagnons: $companions</text:p>');
     xml.writeln('          </draw:text-box>');
@@ -184,16 +184,16 @@ class ContentXmlBuilder {
     
     // Ajout des images
     for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-      final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+      final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
       final yPosition = 3 + mediaIndex * 8;
-      xml.writeln('        <draw:frame draw:name="image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '" draw:style-name="graphic" svg:x="2cm" svg:y="' + yPosition.toString() + 'cm" svg:width="10cm" svg:height="7cm">');
+      xml.writeln('        <draw:frame draw:name="image_$pageIndex-$mediaIndex" draw:style-name="graphic" svg:x="2cm" svg:y="${yPosition}cm" svg:width="10cm" svg:height="7cm">');
       xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>');
       xml.writeln('        </draw:frame>');
     }
     
     // Contenu textuel sous les images
     final contentY = 3 + medias.length * 8 + 1;
-    xml.writeln('        <draw:frame svg:x="1cm" svg:y="' + contentY.toString() + 'cm" svg:width="26cm" svg:height="10cm">');
+    xml.writeln('        <draw:frame svg:x="1cm" svg:y="${contentY}cm" svg:width="26cm" svg:height="10cm">');
     xml.writeln('          <draw:text-box>');
     if (jour.resume.isNotEmpty) {
       xml.writeln('            <text:p text:style-name="P4">Recit du jour: $resume</text:p>');

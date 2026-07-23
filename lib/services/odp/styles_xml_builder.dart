@@ -42,36 +42,36 @@ class StylesXmlBuilder {
     
     <!-- Style de la page de dessin -->
     <style:style style:name="DP1" style:family="drawing-page">
-      <style:drawing-page-properties draw:page-layout-name="AL1" draw:background-color="$secondaryColor" />
+      <style:drawing-page-properties draw:page-layout-name="AL1" draw:background-color="$secondaryColor"/>
     </style:style>
     
     <!-- Styles de paragraphe -->
     <style:style style:name="P1" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="24pt" fo:font-weight="bold" style:color="$primaryColor" />
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="24pt" fo:font-weight="bold" style:color="$primaryColor"/>
     </style:style>
     <style:style style:name="P2" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="18pt" fo:font-weight="bold" style:color="$accentColor" />
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="18pt" fo:font-weight="bold" style:color="$accentColor"/>
     </style:style>
     <style:style style:name="P3" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="16pt" style:font-style="italic" style:color="$lightTextColor" />
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="16pt" style:font-style="italic" style:color="$lightTextColor"/>
     </style:style>
     <style:style style:name="P4" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="14pt" style:color="$textColor" />
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="14pt" style:color="$textColor"/>
     </style:style>
     <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="$lightTextColor" />
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="$lightTextColor"/>
     </style:style>
     
     <!-- Style pour les images -->
     <style:style style:name="graphic" style:family="graphic">
-      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center" />
+      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center"/>
     </style:style>
   </office:styles>
-  <office:automatic-styles />
+  <office:automatic-styles/>
   <office:master-styles>
     <!-- Page maître par défaut utilisant la mise en page PM1 (portrait) -->
     <style:master-page style:name="Default" style:page-layout-name="PM1">
-      <draw:page draw:name="Default" draw:style-name="DP1" draw:master-page-name="" />
+      <draw:page draw:name="Default" draw:style-name="DP1"/>
     </style:master-page>
   </office:master-styles>
 </office:document-styles>''';
