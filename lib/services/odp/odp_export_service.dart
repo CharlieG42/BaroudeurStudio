@@ -1,11 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../models/trek.dart';
-import '../../models/jour_trek.dart';
 import '../../models/media.dart';
 import '../../db/database_helper.dart';
 import '../../config/app_config.dart';
@@ -45,9 +43,10 @@ class OdpExportService {
     
     // Attendre tous les résultats
     final mediasByJour = <int, List<Media>>{};
-    await Future.wait(mediasByJourFuture.map((key, value) => MapEntry(key, value))).then((entries) {
-      for (final entry in entries.entries) {
-        mediasByJour[entry.key] = entry.value;
+    await Future.wait(mediasByJourFuture.values).then((results) {
+      final entries = mediasByJourFuture.entries;
+      for (var i = 0; i < entries.length; i++) {
+        mediasByJour[entries.elementAt(i).key] = results[i];
       }
     });
     
@@ -57,7 +56,7 @@ class OdpExportService {
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-        final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+        final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
         allImagePaths.add(imagePath);
       }
       pageIndex++;
@@ -104,7 +103,7 @@ class OdpExportService {
       // Traiter chaque média de manière asynchrone
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
         final media = medias[mediaIndex];
-        final imagePath = 'Pictures/image_' + pageIndex.toString() + '_' + mediaIndex.toString() + '.jpg';
+        final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
         
         try {
           // Charger l'image de manière asynchrone
@@ -129,7 +128,7 @@ class OdpExportService {
     // Générer le fichier ODP
     final directory = await getApplicationDocumentsDirectory();
     final filename = FilenameUtils.generateExportFilename(trek.titre, 'odp');
-    final filePath = directory.path + '/' + filename;
+    final filePath = '${directory.path}/$filename';
     final file = File(filePath);
     
     // Encoder et écrire l'archive
