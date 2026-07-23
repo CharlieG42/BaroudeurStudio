@@ -13,6 +13,7 @@ import 'manifest_xml_builder.dart';
 import 'styles_xml_builder.dart';
 import 'meta_xml_builder.dart';
 import 'content_xml_builder.dart';
+import 'image_format_utils.dart';
 
 /// Service d'export ODP (OpenDocument Presentation) pour les treks
 /// 
@@ -22,6 +23,7 @@ import 'content_xml_builder.dart';
 /// - Tous les documents générés sont systématiquement en orientation PORTRAIT (21cm x 28cm)
 /// - Le chargement des images se fait de manière asynchrone pour éviter les problèmes de mémoire
 /// - Les images sont optimisées avant d'être ajoutées à l'archive
+/// - Support des formats: JPEG, PNG, HEIC/HEIF (convertis en JPEG)
 class OdpExportService {
   /// Génère un fichier ODP à partir d'un trek
   /// 
@@ -29,6 +31,7 @@ class OdpExportService {
   /// - Orientation: PORTRAIT (21cm x 28cm) - garantie par styles.xml et content.xml
   /// - Format: OpenDocument Presentation (compatible LibreOffice/OpenOffice)
   /// - Contenu: Toutes les informations du trek + images des médias
+  /// - Support multi-format: JPEG, PNG, HEIC/HEIF
   /// 
   /// Retourne le fichier ODP généré
   Future<File> exportTrekToOdp(Trek trek) async {
@@ -50,31 +53,37 @@ class OdpExportService {
       }
     });
     
-    // Collecter tous les chemins d'images et les médias valides
-    // IMPORTANT: Le pageIndex doit correspondre à celui utilisé dans content_xml_builder
-    // content_xml_builder utilise: 0=couverture, 1=titre, 2+=jours
-    final allImagePaths = <String>[];
+    // Préparer les structures pour les images
+    // Les pages des jours commencent à pageIndex = 2 (après couverture=0 et titre=1)
+    final allImagePathsWithMime = <String, String>{};
     final validMediasByJour = <int, List<Media>>{};
+    final imagePathsByPage = <int, List<String>>{};
     
-    // Page de couverture (pageIndex = 0) et page de titre (pageIndex = 1) n'ont pas d'images
-    // Les pages des jours commencent à pageIndex = 2
     int jourPageIndex = 2; // Les jours commencent à la page 2
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
       final validMedias = <Media>[];
+      final imagePaths = <String>[];
       
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-        // Vérifier que le fichier existe avant de l'ajouter
-        final mediaFile = File(medias[mediaIndex].cheminFichier);
+        final media = medias[mediaIndex];
+        final mediaFile = File(media.cheminFichier);
+        
         if (await mediaFile.exists()) {
-          validMedias.add(medias[mediaIndex]);
-          final imagePath = 'Pictures/image_$jourPageIndex-$mediaIndex.jpg';
-          allImagePaths.add(imagePath);
+          validMedias.add(media);
+          
+          // Déterminer le format de sortie et le MIME type
+          final (extension, mimeType) = ImageFormatUtils.getImageFormatInfo(media.cheminFichier);
+          final imagePath = 'Pictures/image_$jourPageIndex-$mediaIndex$extension';
+          
+          imagePaths.add(imagePath);
+          allImagePathsWithMime[imagePath] = mimeType;
         } else {
-          debugPrint('Fichier image introuvable: ${medias[mediaIndex].cheminFichier}');
+          debugPrint('Fichier image introuvable: ${media.cheminFichier}');
         }
       }
       validMediasByJour[jour.id!] = validMedias;
+      imagePathsByPage[jour.id!] = imagePaths;
       jourPageIndex++;
     }
     
@@ -92,12 +101,12 @@ class OdpExportService {
     archive.addFile(mimetypeFile);
     
     // Ajouter META-INF/manifest.xml avec toutes les entrées y compris les images
-    final manifestXml = ManifestXmlBuilder.build(allImagePaths);
+    final manifestXml = ManifestXmlBuilder.build(allImagePathsWithMime);
     final manifestBytes = Uint8List.fromList(manifestXml.codeUnits);
     archive.addFile(ArchiveFile('META-INF/manifest.xml', manifestBytes.length, manifestBytes));
     
-    // Ajouter content.xml - utilise validMediasByJour pour éviter les références aux images manquantes
-    final contentXml = ContentXmlBuilder.build(trek, jours, validMediasByJour);
+    // Ajouter content.xml - utilise validMediasByJour et imagePathsByPage
+    final contentXml = ContentXmlBuilder.build(trek, jours, validMediasByJour, imagePathsByPage);
     final contentBytes = Uint8List.fromList(contentXml.codeUnits);
     archive.addFile(ArchiveFile('content.xml', contentBytes.length, contentBytes));
     
@@ -120,17 +129,23 @@ class OdpExportService {
       // Traiter chaque média de manière asynchrone
       for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
         final media = medias[mediaIndex];
-        final imagePath = 'Pictures/image_$currentPageIndex-$mediaIndex.jpg';
+        final (extension, _) = ImageFormatUtils.getImageFormatInfo(media.cheminFichier);
+        final imagePath = 'Pictures/image_$currentPageIndex-$mediaIndex$extension';
         
         try {
           // Charger l'image de manière asynchrone
           final file = File(media.cheminFichier);
           final imageBytes = await file.readAsBytes();
           
+          // Convertir si nécessaire (HEIC/HEIF -> JPEG)
+          final bytesToUse = ImageFormatUtils.needsConversion(media.cheminFichier)
+              ? await ImageFormatUtils.convertToJpeg(imageBytes)
+              : imageBytes;
+          
           // Optimiser l'image dans un isolate pour éviter de bloquer l'UI
           final optimizedBytes = await compute(
             _optimizeImageInIsolate,
-            (imageBytes, AppConfig.imageCompressionQuality),
+            (bytesToUse, AppConfig.imageCompressionQuality),
           );
           
           archive.addFile(ArchiveFile(imagePath, optimizedBytes.length, optimizedBytes));

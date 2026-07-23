@@ -20,7 +20,9 @@ class ContentXmlBuilder {
   /// - Page de fin (dernière page)
   /// 
   /// Toutes les pages utilisent la mise en page portrait définie dans styles.xml
-  static String build(Trek trek, List<JourTrek> jours, Map<int, List<Media>> mediasByJour) {
+  /// 
+  /// [imagePathsByPage] : Map où la clé est le pageIndex et la valeur est la liste des chemins d'images pour cette page
+  static String build(Trek trek, List<JourTrek> jours, Map<int, List<Media>> mediasByJour, Map<int, List<String>> imagePathsByPage) {
     final dateFormat = DateFormat('yyyy-MM-dd');
     final dateDebut = DateTime.parse(trek.dateDebut);
     final dateFin = DateTime.parse(trek.dateFin);
@@ -56,8 +58,8 @@ class ContentXmlBuilder {
     xml.writeln('    <style:style style:name="P4" style:family="paragraph" style:parent-style-name="Standard">');
     xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="14pt" style:color="#000000"/>');
     xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="#666666"/>');
+    xml.writeln('    <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">
+      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="#666666"/>');
     xml.writeln('    </style:style>');
     xml.writeln('    <style:style style:name="DP1" style:family="drawing-page">');
     xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"/>');
@@ -77,7 +79,8 @@ class ContentXmlBuilder {
     pageIndex++;
     for (final jour in jours) {
       final medias = mediasByJour[jour.id] ?? [];
-      _addJourPage(xml, jour, medias, pageIndex);
+      final imagePaths = imagePathsByPage[jour.id] ?? [];
+      _addJourPage(xml, jour, medias, pageIndex, imagePaths);
       pageIndex++;
     }
     _addEndPage(xml, trek, pageIndex);
@@ -158,7 +161,7 @@ class ContentXmlBuilder {
   /// - En-tête avec la date et le lieu (y=1cm)
   /// - Images disposées verticalement (à partir de y=3cm)
   /// - Contenu textuel en dessous des images
-  static void _addJourPage(StringBuffer xml, JourTrek jour, List<Media> medias, int pageIndex) {
+  static void _addJourPage(StringBuffer xml, JourTrek jour, List<Media> medias, int pageIndex, List<String> imagePaths) {
     final dateFormat = DateFormat('EEEE d MMMM yyyy', 'fr');
     final jourDate = DateTime.parse(jour.date);
     final dateStr = dateFormat.format(jourDate);
@@ -183,8 +186,8 @@ class ContentXmlBuilder {
     xml.writeln('        </draw:frame>');
     
     // Ajout des images
-    for (int mediaIndex = 0; mediaIndex < medias.length; mediaIndex++) {
-      final imagePath = 'Pictures/image_$pageIndex-$mediaIndex.jpg';
+    for (int mediaIndex = 0; mediaIndex < imagePaths.length; mediaIndex++) {
+      final imagePath = imagePaths[mediaIndex];
       final yPosition = 3 + mediaIndex * 8;
       xml.writeln('        <draw:frame draw:name="image_$pageIndex-$mediaIndex" draw:style-name="graphic" svg:x="2cm" svg:y="${yPosition}cm" svg:width="10cm" svg:height="7cm">');
       xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>');
@@ -192,7 +195,7 @@ class ContentXmlBuilder {
     }
     
     // Contenu textuel sous les images
-    final contentY = 3 + medias.length * 8 + 1;
+    final contentY = 3 + imagePaths.length * 8 + 1;
     xml.writeln('        <draw:frame svg:x="1cm" svg:y="${contentY}cm" svg:width="26cm" svg:height="10cm">');
     xml.writeln('          <draw:text-box>');
     if (jour.resume.isNotEmpty) {
