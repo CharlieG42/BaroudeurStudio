@@ -9,18 +9,18 @@ class ManifestXmlBuilder {
     
     xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
     xml.writeln('<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">');
-    xml.writeln('  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.presentation"/>');
-    xml.writeln('  <manifest:file-entry manifest:full-path="mimetype" manifest:media-type="application/vnd.oasis.opendocument.presentation"/>');
-    xml.writeln('  <manifest:file-entry manifest:full-path="META-INF/manifest.xml" manifest:media-type="text/xml"/>');
-    xml.writeln('  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>');
-    xml.writeln('  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>');
-    xml.writeln('  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.presentation"></manifest:file-entry>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="mimetype" manifest:media-type="application/vnd.oasis.opendocument.presentation"></manifest:file-entry>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="META-INF/manifest.xml" manifest:media-type="text/xml"></manifest:file-entry>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"></manifest:file-entry>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"></manifest:file-entry>');
+    xml.writeln('  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"></manifest:file-entry>');
     
     // Ajouter les entrées pour les images avec leurs MIME types
     for (final entry in imagePathsWithMime.entries) {
       final imagePath = entry.key;
       final mimeType = entry.value;
-      xml.writeln('  <manifest:file-entry manifest:full-path="$imagePath" manifest:media-type="$mimeType"/>');
+      xml.writeln('  <manifest:file-entry manifest:full-path="$imagePath" manifest:media-type="$mimeType"></manifest:file-entry>');
     }
     
     xml.writeln('</manifest:manifest>');

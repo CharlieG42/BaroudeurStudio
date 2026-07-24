@@ -43,30 +43,27 @@ class ContentXmlBuilder {
     xml.writeln('                         xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">');
     xml.writeln('  <office:scripts/>');
     xml.writeln('  <office:font-face-decls>');
-    xml.writeln('    <style:font-face style:name="Liberation Sans" svg:font-family="Liberation Sans"/>');
+    xml.writeln('    <style:font-face style:name="Liberation Sans" svg:font-family="Liberation Sans"></style:font-face>');
     xml.writeln('  </office:font-face-decls>');
     xml.writeln('  <office:automatic-styles>');
-    xml.writeln('    <style:style style:name="P1" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="24pt" fo:font-weight="bold" style:color="#f5a665"/>');
-    xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P2" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="18pt" fo:font-weight="bold" style:color="#A67352"/>');
-    xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P3" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="16pt" style:font-style="italic" style:color="#666666"/>');
-    xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P4" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="14pt" style:color="#000000"/>');
-    xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">');
-    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="#666666"/>');
-    xml.writeln('    </style:style>');
+    
+    // Styles de paragraphe
+    _addParagraphStyle(xml, 'P1', '24pt', 'bold', '#f5a665');
+    _addParagraphStyle(xml, 'P2', '18pt', 'bold', '#A67352');
+    _addParagraphStyle(xml, 'P3', '16pt', 'italic', '#666666');
+    _addParagraphStyle(xml, 'P4', '14pt', 'normal', '#000000');
+    _addParagraphStyle(xml, 'P5', '12pt', 'normal', '#666666');
+    
+    // Style de la page de dessin
     xml.writeln('    <style:style style:name="DP1" style:family="drawing-page">');
-    xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"/>');
+    xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"></style:drawing-page-properties>');
     xml.writeln('    </style:style>');
+    
+    // Style pour les images
     xml.writeln('    <style:style style:name="graphic" style:family="graphic">');
-    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center"/>');
+    xml.writeln('      <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center"></style:graphic-properties>');
     xml.writeln('    </style:style>');
+    
     xml.writeln('  </office:automatic-styles>');
     xml.writeln('  <office:body>');
     xml.writeln('    <office:presentation>');
@@ -88,6 +85,19 @@ class ContentXmlBuilder {
     xml.writeln('  </office:body>');
     xml.writeln('</office:document-content>');
     return xml.toString();
+  }
+
+  /// Ajoute un style de paragraphe
+  static void _addParagraphStyle(StringBuffer xml, String name, String size, String weight, String color) {
+    xml.writeln('    <style:style style:name="$name" style:family="paragraph" style:parent-style-name="Standard">');
+    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="$size"');
+    if (weight == 'bold') {
+      xml.writeln(' fo:font-weight="bold"');
+    } else if (weight == 'italic') {
+      xml.writeln(' style:font-style="italic"');
+    }
+    xml.writeln(' style:color="$color"></style:text-properties>');
+    xml.writeln('    </style:style>');
   }
 
   /// Ajoute la page de couverture
@@ -190,7 +200,7 @@ class ContentXmlBuilder {
       final imagePath = imagePaths[mediaIndex];
       final yPosition = 3 + mediaIndex * 8;
       xml.writeln('        <draw:frame draw:name="image_$pageIndex-$mediaIndex" draw:style-name="graphic" svg:x="2cm" svg:y="${yPosition}cm" svg:width="10cm" svg:height="7cm">');
-      xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>');
+      xml.writeln('          <draw:image xlink:href="$imagePath" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"></draw:image>');
       xml.writeln('        </draw:frame>');
     }
     

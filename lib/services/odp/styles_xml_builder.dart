@@ -67,11 +67,13 @@ class StylesXmlBuilder {
       <style:graphic-properties svg:stroke-color="#000000" draw:fill="solid" draw:fill-color="#ffffff" fo:wrap-option="wrap" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="center"/>
     </style:style>
   </office:styles>
-  <office:automatic-styles/>
+  <office:automatic-styles>
+  </office:automatic-styles>
   <office:master-styles>
     <!-- Page maître par défaut utilisant la mise en page PM1 (portrait) -->
     <style:master-page style:name="Default" style:page-layout-name="PM1">
-      <draw:page draw:name="Default" draw:style-name="DP1"/>
+      <draw:page draw:name="Default" draw:style-name="DP1">
+      </draw:page>
     </style:master-page>
   </office:master-styles>
 </office:document-styles>''';
