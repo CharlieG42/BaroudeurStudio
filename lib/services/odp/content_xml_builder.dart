@@ -58,8 +58,8 @@ class ContentXmlBuilder {
     xml.writeln('    <style:style style:name="P4" style:family="paragraph" style:parent-style-name="Standard">');
     xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="14pt" style:color="#000000"/>');
     xml.writeln('    </style:style>');
-    xml.writeln('    <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">
-      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="#666666"/>');
+    xml.writeln('    <style:style style:name="P5" style:family="paragraph" style:parent-style-name="Standard">');
+    xml.writeln('      <style:text-properties style:font-name="Liberation Sans" style:font-size="12pt" style:color="#666666"/>');
     xml.writeln('    </style:style>');
     xml.writeln('    <style:style style:name="DP1" style:family="drawing-page">');
     xml.writeln('      <style:drawing-page-properties draw:page-layout-name="AL1" style:background-color="#d7b895"/>');
