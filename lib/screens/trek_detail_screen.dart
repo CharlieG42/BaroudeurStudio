@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/odp_settings_button.dart';
 import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
@@ -152,6 +153,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
         title: Text(_trek.titre),
         actions: [
           ExportOdpButton(trek: _trek),
+          const OdpSettingsButton(),
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Modifier le trek',

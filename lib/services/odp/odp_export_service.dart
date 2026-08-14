@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 import '../../models/trek.dart';
@@ -17,24 +18,26 @@ import 'odp_content_filler.dart';
 /// Service d'export ODP (OpenDocument Presentation) pour les treks.
 ///
 /// Ce service se base sur le template
-/// `assets/templates/template_baroudeurstudio.odp` (realise sous LibreOffice).
+/// `assets/templates/template_baroudeurstudio.odp` (réalisé sous LibreOffice).
 /// Le template apporte sa propre mise en page (styles, master-pages, polices,
 /// couleurs, orientation, image de couverture...). Le service se contente de:
 ///
 /// - charger le template depuis les assets,
-/// - decompresser l'archive ODP,
+/// - décompresser l'archive ODP,
 /// - remplir les placeholders de content.xml (`{{TREK_TITLE}}`,
-///   `{{JOUR_DEPART}}`, `{{JOUR_RESUME}}`, `{{JOUR_IMAGE_1}}`),
+///   `{{JOUR_DEPART}}`, `{{JOUR_RESUME}}`, `{{JOUR_IMAGE_1}}`), en préservant
+///   les sauts de ligne du texte,
 /// - dupliquer la page "jour" pour chaque `JourTrek`,
-/// - ajouter les images des jours dans `Pictures/`,
-/// - mettre a jour `META-INF/manifest.xml` avec les nouvelles images,
-/// - re-encoder le ZIP avec mimetype en premier et non compresse
-///   (obligatoire pour la conformite ODP).
+/// - ajouter les images des jours dans `Pictures/` en respectant le ratio
+///   d'origine et les dimensions minimum configurées,
+/// - mettre à jour `META-INF/manifest.xml` avec les nouvelles images,
+/// - ré-encoder le ZIP avec mimetype en premier et non compressé
+///   (obligatoire pour la conformité ODP).
 ///
 /// IMPORTANT: le package `archive` 3.x a un bug dans `removeFile()` qui
-/// corrompt les `_fileMap` apres suppression d'un fichier (les index ne sont
-/// pas recalcules). On evite donc `removeFile` en construisant une nouvelle
-/// archive a partir des contenus lus immediatement apres le decodage.
+/// corrompt les `_fileMap` après suppression d'un fichier (les index ne sont
+/// pas recalculés). On évite donc `removeFile` en construisant une nouvelle
+/// archive à partir des contenus lus immédiatement après le décodage.
 class OdpExportService {
   /// Chemin du template ODP dans les assets Flutter.
   static const String templateAssetPath =
@@ -44,9 +47,13 @@ class OdpExportService {
   static const String odpMimeType =
       'application/vnd.oasis.opendocument.presentation';
 
-  /// Genere un fichier ODP a partir d'un trek, en se basant sur le template.
+  /// Paramètres de dimensionnement des images (modifiables via le menu
+  /// Paramétrage). Valeurs par défaut: hauteur min 8cm, largeur min 13cm.
+  OdpImageSettings imageSettings = OdpImageSettings.defaults;
+
+  /// Génère un fichier ODP à partir d'un trek, en se basant sur le template.
   Future<File> exportTrekToOdp(Trek trek) async {
-    // 1. Charger les donnees du trek.
+    // 1. Charger les données du trek.
     final jours = await DatabaseHelper.instance.getJoursForTrek(trek.id!);
     final mediasByJour = <int, List<Media>>{};
     for (final jour in jours) {
@@ -59,10 +66,10 @@ class OdpExportService {
     final archive =
         ZipDecoder().decodeBytes(templateBytes.buffer.asUint8List());
 
-    // 3. Lire IMMEDIATEMENT le contenu de tous les fichiers du template dans
-    //    des variables locales. C'est necessaire car le package `archive` 3.x
-    //    a un bug: apres removeFile(), les index internes (_fileMap) ne sont
-    //    pas recalcules et findFile() renvoie des contenus corrompus.
+    // 3. Lire IMMÉDIATEMENT le contenu de tous les fichiers du template dans
+    //    des variables locales. C'est nécessaire car le package `archive` 3.x
+    //    a un bug: après removeFile(), les index internes (_fileMap) ne sont
+    //    pas recalculés et findFile() renvoie des contenus corrompus.
     final fileContents = <String, Uint8List>{};
     for (final file in archive) {
       if (file.isFile) {
@@ -71,12 +78,13 @@ class OdpExportService {
       }
     }
 
-    // 4. Determiner le chemin d'image de chaque jour (dans l'archive).
+    // 4. Déterminer le chemin d'image de chaque jour (dans l'archive) et
+    //    charger/optimiser les images pour extraire leurs dimensions.
     final jourImagePaths = <String?>[];
-    final jourPhotoMedias = <Media?>[];
+    final jourImageDimensions = <ImageDimensions?>[];
     for (int i = 0; i < jours.length; i++) {
       final medias = mediasByJour[jours[i].id] ?? [];
-      // Pour le moment une image par jour (la premiere photo disponible).
+      // Pour le moment une image par jour (la première photo disponible).
       Media? firstPhoto;
       for (final m in medias) {
         if (m.type == MediaType.photo) {
@@ -85,39 +93,47 @@ class OdpExportService {
         }
       }
       firstPhoto ??= medias.isNotEmpty ? medias.first : null;
-      jourPhotoMedias.add(firstPhoto);
+
       if (firstPhoto != null) {
-        jourImagePaths.add('Pictures/jour_$i.jpg');
+        final imagePath = 'Pictures/jour_$i.jpg';
+        jourImagePaths.add(imagePath);
+        // Charger et optimiser l'image, puis extraire ses dimensions.
+        try {
+          final file = File(firstPhoto.cheminFichier);
+          final imageBytes = await file.readAsBytes();
+          final optimizedBytes = await compute(
+            _optimizeImageInIsolate,
+            (imageBytes, AppConfig.imageCompressionQuality),
+          );
+          fileContents[imagePath] = optimizedBytes;
+          // Extraire les dimensions de l'image optimisée.
+          final dims = _readImageDimensions(optimizedBytes);
+          jourImageDimensions.add(dims);
+        } catch (e) {
+          debugPrint('Erreur lors du chargement de l\'image: $e');
+          jourImagePaths.last = null;
+          jourImageDimensions.add(null);
+        }
       } else {
         jourImagePaths.add(null);
+        jourImageDimensions.add(null);
       }
     }
 
-    // 5. Remplir content.xml avec les placeholders.
+    // 5. Remplir content.xml avec les placeholders (en préservant les sauts
+    //    de ligne et en calculant les dimensions des images selon le ratio).
     final contentXml = utf8.decode(fileContents['content.xml']!, allowMalformed: true);
-    final filledContent =
-        OdpContentFiller.fill(contentXml, trek, jours, jourImagePaths);
+    final filledContent = OdpContentFiller.fill(
+      contentXml,
+      trek,
+      jours,
+      jourImagePaths,
+      jourImageDimensions: jourImageDimensions,
+      imageSettings: imageSettings,
+    );
     fileContents['content.xml'] = Uint8List.fromList(utf8.encode(filledContent));
 
-    // 6. Optimiser et ajouter les images des jours.
-    for (int i = 0; i < jours.length; i++) {
-      final imagePath = jourImagePaths[i];
-      final firstPhoto = jourPhotoMedias[i];
-      if (imagePath == null || firstPhoto == null) continue;
-      try {
-        final file = File(firstPhoto.cheminFichier);
-        final imageBytes = await file.readAsBytes();
-        final optimizedBytes = await compute(
-          _optimizeImageInIsolate,
-          (imageBytes, AppConfig.imageCompressionQuality),
-        );
-        fileContents[imagePath] = optimizedBytes;
-      } catch (e) {
-        debugPrint('Erreur lors du chargement de l\'image: $e');
-      }
-    }
-
-    // 7. Mettre a jour META-INF/manifest.xml avec les nouvelles images.
+    // 6. Mettre à jour META-INF/manifest.xml avec les nouvelles images.
     final manifestXml = utf8.decode(
       fileContents['META-INF/manifest.xml']!,
       allowMalformed: true,
@@ -126,20 +142,15 @@ class OdpExportService {
     fileContents['META-INF/manifest.xml'] =
         Uint8List.fromList(utf8.encode(updatedManifest));
 
-    // 8. Mettre a jour meta.xml avec le titre et la date.
+    // 7. Mettre à jour meta.xml avec le titre et la date.
     final metaXml = utf8.decode(fileContents['meta.xml']!, allowMalformed: true);
     final updatedMeta = _updateMetaXml(metaXml, trek);
     fileContents['meta.xml'] = Uint8List.fromList(utf8.encode(updatedMeta));
 
-    // 9. Re-encoder l'archive: mimetype en premier et non compresse.
-    //
-    // On reconstruit une nouvelle archive en copiant les fichiers du template
-    // dans l'ordre original, en utilisant les contenus (eventuellement
-    // modifies) lus a l'etape 3. Le mimetype doit etre le premier fichier,
-    // stocke sans compression (obligation du format ODP/ODF).
+    // 8. Ré-encoder l'archive: mimetype en premier et non compressé.
     final newArchive = Archive();
 
-    // mimetype en premier, non compresse.
+    // mimetype en premier, non compressé.
     final mimetypeData = fileContents['mimetype']!;
     final mt = ArchiveFile('mimetype', mimetypeData.length, mimetypeData);
     mt.compress = false;
@@ -150,7 +161,6 @@ class OdpExportService {
     for (final file in archive) {
       if (file.name == 'mimetype') continue;
       if (!file.isFile) {
-        // Entree de repertoire (ex: Configurations2/).
         newArchive.addFile(file);
         continue;
       }
@@ -177,10 +187,10 @@ class OdpExportService {
 
     final zipData = ZipEncoder().encode(newArchive);
     if (zipData == null) {
-      throw StateError('Echec de l\'encodage de l\'archive ODP');
+      throw StateError('Échec de l\'encodage de l\'archive ODP');
     }
 
-    // 10. Ecrire le fichier final.
+    // 9. Écrire le fichier final.
     final directory = await getApplicationDocumentsDirectory();
     final filename = FilenameUtils.generateExportFilename(trek.titre, 'odp');
     final filePath = '${directory.path}/$filename';
@@ -189,8 +199,23 @@ class OdpExportService {
     return file;
   }
 
-  /// Ajoute les entrees manifest pour les images de jour qui ne sont pas
-  /// deja presentes.
+  /// Lit les dimensions (largeur, hauteur en pixels) d'une image JPEG.
+  ///
+  /// Utilise le package `image` pour décoder l'en-tête de l'image sans
+  /// charger toute l'image en mémoire.
+  ImageDimensions? _readImageDimensions(Uint8List imageBytes) {
+    try {
+      final decoded = img.decodeImage(imageBytes);
+      if (decoded == null) return null;
+      return ImageDimensions(decoded.width, decoded.height);
+    } catch (e) {
+      debugPrint('Erreur lors de la lecture des dimensions de l\'image: $e');
+      return null;
+    }
+  }
+
+  /// Ajoute les entrées manifest pour les images de jour qui ne sont pas
+  /// déjà présentes.
   String _addImagesToManifest(String manifestXml, List<String?> imagePaths) {
     final toAdd = <String>[];
     for (final path in imagePaths) {
@@ -210,11 +235,10 @@ class OdpExportService {
         '${manifestXml.substring(insertBefore)}';
   }
 
-  /// Met a jour le titre et la date dans meta.xml.
+  /// Met à jour le titre et la date dans meta.xml.
   String _updateMetaXml(String metaXml, Trek trek) {
     final now = DateTime.now().toUtc().toIso8601String();
     var result = metaXml;
-    // Remplacer/dc:title ou l'ajouter.
     final escaped = _escapeXml(trek.titre);
     if (result.contains('<dc:title>')) {
       result = result.replaceFirst(
@@ -227,7 +251,6 @@ class OdpExportService {
         '<office:meta>\n    <dc:title>$escaped</dc:title>',
       );
     }
-    // Mettre a jour la date de modification.
     if (result.contains('<dc:date>')) {
       result = result.replaceFirst(
         RegExp(r'<dc:date>[^<]*</dc:date>'),

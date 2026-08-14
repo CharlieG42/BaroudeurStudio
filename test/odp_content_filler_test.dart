@@ -13,18 +13,16 @@ import 'package:les_baroudeurs/services/odp/odp_content_filler.dart';
 /// Tests du remplissage du template ODP.
 ///
 /// Ces tests chargent le template `assets/templates/template_baroudeurstudio.odp`
-/// directement depuis le systeme de fichiers (le dossier assets est versionne
-/// et donc accessible pendant les tests), puis verifient que les placeholders
-/// sont correctement remplaces et que la structure de l'archive reste valide.
+/// directement depuis le système de fichiers (le dossier assets est versionné
+/// et donc accessible pendant les tests), puis vérifient que les placeholders
+/// sont correctement remplacés et que la structure de l'archive reste valide.
 void main() {
   late String templateContentXml;
   late Archive templateArchive;
 
   setUpAll(() {
-    // Les donnees de locale fr sont necessaires pour DateFormat('...', 'fr').
     initializeDateFormatting('fr_FR', null);
 
-    // Le template ODP est un ZIP; on le lit depuis le systeme de fichiers.
     final templatePath =
         '${Directory.current.path}/assets/templates/template_baroudeurstudio.odp';
     final bytes = File(templatePath).readAsBytesSync();
@@ -76,14 +74,11 @@ void main() {
       final result =
           OdpContentFiller.fill(templateContentXml, trek, jours, imagePaths);
 
-      // Aucun placeholder ne doit rester.
       expect(result, isNot(contains(OdpContentFiller.trekTitlePh)));
       expect(result, isNot(contains(OdpContentFiller.jourDepartPh)));
       expect(result, isNot(contains(OdpContentFiller.jourResumePh)));
       expect(result, isNot(contains(OdpContentFiller.jourImagePh)));
-      // Le titre echappe doit apparaitre.
       expect(result, contains('Mon Trek &amp; Aventure'));
-      // L'image du jour doit etre referencee.
       expect(result, contains('Pictures/jour_0.jpg'));
     });
 
@@ -119,18 +114,14 @@ void main() {
       final result =
           OdpContentFiller.fill(templateContentXml, trek, jours, imagePaths);
 
-      // 1 couverture + 3 jours + 1 fin = 5 pages de premier niveau.
       final pages = OdpContentFiller.extractTopLevelPages(result);
       expect(pages.length, 5);
-      // Les resumes doivent etre presents.
       expect(result, contains('Jour 1'));
       expect(result, contains('Jour 2'));
       expect(result, contains('Jour 3'));
-      // Les noms de pages doivent etre uniques.
       expect(result, contains('jour_1'));
       expect(result, contains('jour_2'));
       expect(result, contains('jour_3'));
-      // Les images des jours 0 et 2, pas la 1.
       expect(result, contains('Pictures/jour_0.jpg'));
       expect(result, isNot(contains('Pictures/jour_1.jpg')));
       expect(result, contains('Pictures/jour_2.jpg'));
@@ -145,11 +136,12 @@ void main() {
         region: 'Test',
         pays: 'FR',
       );
-      final jours = <JourTrek>[];
-      final imagePaths = <String?>[];
-
-      final result =
-          OdpContentFiller.fill(templateContentXml, trek, jours, imagePaths);
+      final result = OdpContentFiller.fill(
+        templateContentXml,
+        trek,
+        <JourTrek>[],
+        <String?>[],
+      );
 
       expect(result, contains('A &lt; B &amp; C &gt; D &quot;E&quot; &apos;F&apos;'));
     });
@@ -169,45 +161,188 @@ void main() {
         <JourTrek>[],
         <String?>[],
       );
-      // Couverture + page jour vide + page de fin = 3 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
       expect(pages.length, 3);
       expect(result, isNot(contains('{{')));
     });
   });
 
-  group('Archive ODP generee', () {
-    test('le mimetype est bien present et non compresse dans le template', () {
-      final mt = templateArchive.findFile('mimetype');
-      expect(mt, isNotNull);
-      expect(mt!.compress, isFalse,
-          reason: 'mimetype doit etre stocke non compresse (conformite ODP)');
-      final content = utf8.decode(mt.content as List<int>);
-      expect(content, 'application/vnd.oasis.opendocument.presentation');
+  // ===========================================================================
+  // TESTS: PRESERVATION DES SAUTS DE LIGNE
+  // ===========================================================================
+  group('Preservation des sauts de ligne', () {
+    test('convertit les sauts de ligne en <text:line-break/>', () {
+      final trek = Trek(
+        id: 1,
+        titre: 'Trek',
+        dateDebut: '2024-07-01',
+        dateFin: '2024-07-01',
+        region: 'R',
+        pays: 'P',
+      );
+      final jours = [
+        JourTrek(
+          id: 1,
+          trekId: 1,
+          numeroJour: 1,
+          date: '2024-07-01',
+          resume: 'Ligne 1\nLigne 2\nLigne 3',
+        ),
+      ];
+
+      final result = OdpContentFiller.fill(
+        templateContentXml,
+        trek,
+        jours,
+        <String?>[null],
+      );
+
+      expect(result, contains('Ligne 1<text:line-break/>Ligne 2'));
+      expect(result, contains('Ligne 2<text:line-break/>Ligne 3'));
+      expect(result, isNot(contains('Ligne 1\nLigne 2')));
     });
 
-    test('le template preserve styles.xml, settings.xml et meta.xml', () {
-      expect(templateArchive.findFile('styles.xml'), isNotNull);
-      expect(templateArchive.findFile('settings.xml'), isNotNull);
-      expect(templateArchive.findFile('meta.xml'), isNotNull);
-      expect(templateArchive.findFile('META-INF/manifest.xml'), isNotNull);
+    test('gere les sauts de ligne Windows (\\r\\n)', () {
+      final trek = Trek(
+        id: 1,
+        titre: 'Trek',
+        dateDebut: '2024-07-01',
+        dateFin: '2024-07-01',
+        region: 'R',
+        pays: 'P',
+      );
+      final jours = [
+        JourTrek(
+          id: 1,
+          trekId: 1,
+          numeroJour: 1,
+          date: '2024-07-01',
+          resume: 'A\r\nB\r\nC',
+        ),
+      ];
+
+      final result = OdpContentFiller.fill(
+        templateContentXml,
+        trek,
+        jours,
+        <String?>[null],
+      );
+
+      expect(result, contains('A<text:line-break/>B'));
+      expect(result, contains('B<text:line-break/>C'));
+      expect(result, isNot(contains('\r')));
+    });
+
+    test('preserve les sauts de ligne dans le titre du trek', () {
+      final trek = Trek(
+        id: 1,
+        titre: 'Titre\nSous-titre',
+        dateDebut: '2024-07-01',
+        dateFin: '2024-07-01',
+        region: 'R',
+        pays: 'P',
+      );
+
+      final result = OdpContentFiller.fill(
+        templateContentXml,
+        trek,
+        <JourTrek>[],
+        <String?>[],
+      );
+
+      expect(result, contains('Titre<text:line-break/>Sous-titre'));
+    });
+
+    test('echappe les caracteres speciaux ET preserve les sauts de ligne', () {
+      final trek = Trek(
+        id: 1,
+        titre: 'A & B\n<C>',
+        dateDebut: '2024-07-01',
+        dateFin: '2024-07-01',
+        region: 'R',
+        pays: 'P',
+      );
+
+      final result = OdpContentFiller.fill(
+        templateContentXml,
+        trek,
+        <JourTrek>[],
+        <String?>[],
+      );
+
+      expect(result, contains('A &amp; B<text:line-break/>&lt;C&gt;'));
     });
   });
 
-  /// Ce test reproduit le flux complet du OdpExportService (sans l'IO des
-  /// images reelles) pour verifier que l'archive ODP generee est conforme:
-  ///  - mimetype en 1ere position et non compresse,
-  ///  - toutes les images referencees dans content.xml sont presentes dans
-  ///    l'archive ET declarees dans META-INF/manifest.xml.
-  ///
-  /// C'est le test de regression pour le bug de corruption ODP cause par
-  /// l'utilisation de Archive.removeFile() (bug du package archive 3.x qui
-  /// corrompt les _fileMap apres suppression).
+  // ===========================================================================
+  // TESTS: CALCUL DES DIMENSIONS D'IMAGE
+  // ===========================================================================
+  group('computeImageDimensions', () {
+    test('image paysage: largeur >= minWidthCm', () {
+      // Image 1600x900 (paysage, ratio ~1.78)
+      final dims = ImageDimensions(1600, 900);
+      final result =
+          OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
+
+      expect(result.widthCm, greaterThanOrEqualTo(13.0));
+      final ratio = result.widthCm / result.heightCm;
+      expect(ratio, closeTo(1600 / 900, 0.01));
+    });
+
+    test('image portrait: hauteur >= minHeightCm', () {
+      // Image 900x1600 (portrait, ratio ~0.56)
+      final dims = ImageDimensions(900, 1600);
+      final result =
+          OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
+
+      expect(result.heightCm, greaterThanOrEqualTo(8.0));
+      final ratio = result.widthCm / result.heightCm;
+      expect(ratio, closeTo(900 / 1600, 0.01));
+    });
+
+    test('image carree: satisfait les deux minimums', () {
+      final dims = ImageDimensions(1000, 1000);
+      final result =
+          OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
+
+      expect(result.heightCm, greaterThanOrEqualTo(8.0));
+      expect(result.widthCm, greaterThanOrEqualTo(8.0));
+      expect(result.widthCm, closeTo(result.heightCm, 0.01));
+    });
+
+    test('respecte les maximums', () {
+      final dims = ImageDimensions(8000, 1000);
+      final result =
+          OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
+
+      expect(result.widthCm, lessThanOrEqualTo(18.0));
+    });
+
+    test('retourne les minimums par defaut si dims est null', () {
+      final result = OdpContentFiller.computeImageDimensions(
+          null, OdpImageSettings.defaults);
+
+      expect(result.widthCm, 13.0);
+      expect(result.heightCm, 8.0);
+    });
+
+    test('parametres personnalises sont respectes', () {
+      final settings = OdpImageSettings(minHeightCm: 10.0, minWidthCm: 15.0);
+      final dims = ImageDimensions(900, 1600); // portrait
+      final result = OdpContentFiller.computeImageDimensions(dims, settings);
+
+      expect(result.heightCm, greaterThanOrEqualTo(10.0));
+    });
+  });
+
+  // ===========================================================================
+  // TESTS: CONFORMITE ODP (FLUX COMPLET)
+  // ===========================================================================
   group('Conformite ODP (flux complet)', () {
     test('l\'archive generee est conforme: mimetype + manifest + images', () {
       final jourImagePaths = <String?>['Pictures/jour_0.jpg'];
+      final jourImageDims = <ImageDimensions?>[ImageDimensions(1200, 900)];
 
-      // Lire IMMEDIATEMENT le contenu de tous les fichiers (comme le service).
       final fileContents = <String, Uint8List>{};
       for (final file in templateArchive) {
         if (file.isFile) {
@@ -216,7 +351,6 @@ void main() {
         }
       }
 
-      // Remplir content.xml.
       final trek = Trek(
         id: 1,
         titre: 'Trek Test',
@@ -231,26 +365,29 @@ void main() {
           lieuDepart: 'A', lieuArrivee: 'B', resume: 'J1',
         ),
       ];
-      final contentXml = utf8.decode(fileContents['content.xml']!, allowMalformed: true);
-      final filledContent =
-          OdpContentFiller.fill(contentXml, trek, jours, jourImagePaths);
-      fileContents['content.xml'] = Uint8List.fromList(utf8.encode(filledContent));
+      final contentXml =
+          utf8.decode(fileContents['content.xml']!, allowMalformed: true);
+      final filledContent = OdpContentFiller.fill(
+        contentXml,
+        trek,
+        jours,
+        jourImagePaths,
+        jourImageDimensions: jourImageDims,
+      );
+      fileContents['content.xml'] =
+          Uint8List.fromList(utf8.encode(filledContent));
 
-      // Ajouter l'image (dummy: reutilise le PNG du template).
       fileContents['Pictures/jour_0.jpg'] =
           fileContents['Pictures/1000000100000499000002A0DBB432AD.png']!;
 
-      // Mettre a jour le manifest.
       final manifestXml = utf8.decode(
-        fileContents['META-INF/manifest.xml']!, allowMalformed: true);
+          fileContents['META-INF/manifest.xml']!, allowMalformed: true);
       final toAdd = <String>[];
       for (final path in jourImagePaths) {
         if (path == null || path.isEmpty) continue;
         if (!manifestXml.contains('manifest:full-path="$path"')) {
-          toAdd.add(
-            '  <manifest:file-entry manifest:full-path="$path" '
-            'manifest:media-type="image/jpeg"/>',
-          );
+          toAdd.add('  <manifest:file-entry manifest:full-path="$path" '
+              'manifest:media-type="image/jpeg"/>');
         }
       }
       var updatedManifest = manifestXml;
@@ -263,7 +400,6 @@ void main() {
       fileContents['META-INF/manifest.xml'] =
           Uint8List.fromList(utf8.encode(updatedManifest));
 
-      // Re-encoder l'archive (comme le service).
       final newArchive = Archive();
       final mtData = fileContents['mimetype']!;
       final mt = ArchiveFile('mimetype', mtData.length, mtData);
@@ -285,48 +421,55 @@ void main() {
       }
       for (final entry in fileContents.entries) {
         if (entry.key.startsWith('Pictures/jour_')) {
-          final copy = ArchiveFile(entry.key, entry.value.length, entry.value);
+          final copy =
+              ArchiveFile(entry.key, entry.value.length, entry.value);
           copy.compress = true;
           newArchive.addFile(copy);
         }
       }
 
       final zipData = ZipEncoder().encode(newArchive)!;
-
-      // Decoder pour verifier la conformite.
       final outArchive = ZipDecoder().decodeBytes(zipData);
 
-      // 1. mimetype en 1ere position, non compresse.
       expect(outArchive.first.name, 'mimetype');
       expect(outArchive.first.compress, isFalse);
       expect(
         utf8.decode(outArchive.first.content as List<int>),
         'application/vnd.oasis.opendocument.presentation',
       );
+      expect(outArchive.findFile('Pictures/jour_0.jpg'), isNotNull);
 
-      // 2. L'image jour_0.jpg est presente dans l'archive.
-      final imgFile = outArchive.findFile('Pictures/jour_0.jpg');
-      expect(imgFile, isNotNull,
-          reason: 'L\'image du jour doit etre dans l\'archive');
-
-      // 3. L'image jour_0.jpg est declaree dans le manifest.
       final outManifest = utf8.decode(
         outArchive.findFile('META-INF/manifest.xml')!.content as List<int>,
         allowMalformed: true,
       );
-      expect(
-        outManifest,
-        contains('manifest:full-path="Pictures/jour_0.jpg"'),
-        reason: 'Chaque fichier de l\'archive doit etre declare dans le manifest',
-      );
+      expect(outManifest, contains('manifest:full-path="Pictures/jour_0.jpg"'));
 
-      // 4. content.xml est bien forme (pas de placeholders restants).
       final outContent = utf8.decode(
         outArchive.findFile('content.xml')!.content as List<int>,
         allowMalformed: true,
       );
       expect(outContent, isNot(contains('{{')));
       expect(outContent, contains('Pictures/jour_0.jpg'));
+      expect(outContent, contains('svg:width='));
+      expect(outContent, contains('svg:height='));
+    });
+  });
+
+  group('Archive ODP generee', () {
+    test('le mimetype est bien present et non compresse dans le template', () {
+      final mt = templateArchive.findFile('mimetype');
+      expect(mt, isNotNull);
+      expect(mt!.compress, isFalse);
+      final content = utf8.decode(mt.content as List<int>);
+      expect(content, 'application/vnd.oasis.opendocument.presentation');
+    });
+
+    test('le template preserve styles.xml, settings.xml et meta.xml', () {
+      expect(templateArchive.findFile('styles.xml'), isNotNull);
+      expect(templateArchive.findFile('settings.xml'), isNotNull);
+      expect(templateArchive.findFile('meta.xml'), isNotNull);
+      expect(templateArchive.findFile('META-INF/manifest.xml'), isNotNull);
     });
   });
 }
