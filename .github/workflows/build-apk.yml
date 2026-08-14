@@ -45,9 +45,13 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # Decode the release keystore from a secret (base64-encoded .jks).
-      # Les secrets sont optionnels : s'ils ne sont pas definis, le build
-      # se fait avec la config par defaut (debug) du build.gradle.kts.
+      # Configuration du keystore de signature.
+      #
+      # Le build.gradle.kts attend un keystore a ../upload-keystore.jks et un
+      # fichier key.properties. Si les secrets ne sont pas definis, on genere
+      # un keystore auto-signe jetable pour que le build release reussisse
+      # (l'APK sera signe mais non distribuable en production).
+      #
       # Pour un APK distribuable, definissez dans les secrets du depot :
       #   ANDROID_KEYSTORE_BASE64  -> contenu base64 du fichier .jks
       #   ANDROID_KEY_ALIAS        -> alias de la cle
@@ -60,16 +64,31 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "Aucun keystore fourni : build avec la config de debug."
-            exit 0
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Utilisation du keystore de production (secret)."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+            STORE_PASS="$ANDROID_STORE_PASSWORD"
+            KEY_ALIAS="$ANDROID_KEY_ALIAS"
+            KEY_PASS="$ANDROID_KEY_PASSWORD"
+          else
+            echo "Aucun keystore fourni : generation d'un keystore jetable."
+            keytool -genkeypair -v \
+              -keystore android/upload-keystore.jks \
+              -storetype JKS \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias upload \
+              -storepass password \
+              -keypass password \
+              -dname "CN=Baroudeur Studio CI, OU=Dev, O=Baroudeur, L=Paris, S=Paris, C=FR"
+            STORE_PASS="password"
+            KEY_ALIAS="upload"
+            KEY_PASS="password"
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
           {
             echo "storeFile=../upload-keystore.jks"
-            echo "storePassword=$ANDROID_STORE_PASSWORD"
-            echo "keyAlias=$ANDROID_KEY_ALIAS"
-            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "storePassword=$STORE_PASS"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASS"
           } > android/key.properties
           echo "Keystore release configure."
 
