@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -190,6 +191,142 @@ void main() {
       expect(templateArchive.findFile('settings.xml'), isNotNull);
       expect(templateArchive.findFile('meta.xml'), isNotNull);
       expect(templateArchive.findFile('META-INF/manifest.xml'), isNotNull);
+    });
+  });
+
+  /// Ce test reproduit le flux complet du OdpExportService (sans l'IO des
+  /// images reelles) pour verifier que l'archive ODP generee est conforme:
+  ///  - mimetype en 1ere position et non compresse,
+  ///  - toutes les images referencees dans content.xml sont presentes dans
+  ///    l'archive ET declarees dans META-INF/manifest.xml.
+  ///
+  /// C'est le test de regression pour le bug de corruption ODP cause par
+  /// l'utilisation de Archive.removeFile() (bug du package archive 3.x qui
+  /// corrompt les _fileMap apres suppression).
+  group('Conformite ODP (flux complet)', () {
+    test('l\'archive generee est conforme: mimetype + manifest + images', () {
+      final jourImagePaths = <String?>['Pictures/jour_0.jpg'];
+
+      // Lire IMMEDIATEMENT le contenu de tous les fichiers (comme le service).
+      final fileContents = <String, Uint8List>{};
+      for (final file in templateArchive) {
+        if (file.isFile) {
+          final data = file.content as List<int>;
+          fileContents[file.name] = Uint8List.fromList(data);
+        }
+      }
+
+      // Remplir content.xml.
+      final trek = Trek(
+        id: 1,
+        titre: 'Trek Test',
+        dateDebut: '2024-07-01',
+        dateFin: '2024-07-01',
+        region: 'Alpes',
+        pays: 'France',
+      );
+      final jours = [
+        JourTrek(
+          id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+          lieuDepart: 'A', lieuArrivee: 'B', resume: 'J1',
+        ),
+      ];
+      final contentXml = utf8.decode(fileContents['content.xml']!, allowMalformed: true);
+      final filledContent =
+          OdpContentFiller.fill(contentXml, trek, jours, jourImagePaths);
+      fileContents['content.xml'] = Uint8List.fromList(utf8.encode(filledContent));
+
+      // Ajouter l'image (dummy: reutilise le PNG du template).
+      fileContents['Pictures/jour_0.jpg'] =
+          fileContents['Pictures/1000000100000499000002A0DBB432AD.png']!;
+
+      // Mettre a jour le manifest.
+      final manifestXml = utf8.decode(
+        fileContents['META-INF/manifest.xml']!, allowMalformed: true);
+      final toAdd = <String>[];
+      for (final path in jourImagePaths) {
+        if (path == null || path.isEmpty) continue;
+        if (!manifestXml.contains('manifest:full-path="$path"')) {
+          toAdd.add(
+            '  <manifest:file-entry manifest:full-path="$path" '
+            'manifest:media-type="image/jpeg"/>',
+          );
+        }
+      }
+      var updatedManifest = manifestXml;
+      if (toAdd.isNotEmpty) {
+        final insertBefore = manifestXml.indexOf('</manifest:manifest>');
+        updatedManifest = '${manifestXml.substring(0, insertBefore)}'
+            '${toAdd.join('\n')}\n'
+            '${manifestXml.substring(insertBefore)}';
+      }
+      fileContents['META-INF/manifest.xml'] =
+          Uint8List.fromList(utf8.encode(updatedManifest));
+
+      // Re-encoder l'archive (comme le service).
+      final newArchive = Archive();
+      final mtData = fileContents['mimetype']!;
+      final mt = ArchiveFile('mimetype', mtData.length, mtData);
+      mt.compress = false;
+      newArchive.addFile(mt);
+      fileContents.remove('mimetype');
+      for (final file in templateArchive) {
+        if (file.name == 'mimetype') continue;
+        if (!file.isFile) {
+          newArchive.addFile(file);
+          continue;
+        }
+        final data = fileContents[file.name];
+        if (data == null) continue;
+        final copy = ArchiveFile(file.name, data.length, data);
+        copy.compress = true;
+        newArchive.addFile(copy);
+        fileContents.remove(file.name);
+      }
+      for (final entry in fileContents.entries) {
+        if (entry.key.startsWith('Pictures/jour_')) {
+          final copy = ArchiveFile(entry.key, entry.value.length, entry.value);
+          copy.compress = true;
+          newArchive.addFile(copy);
+        }
+      }
+
+      final zipData = ZipEncoder().encode(newArchive)!;
+
+      // Decoder pour verifier la conformite.
+      final outArchive = ZipDecoder().decodeBytes(zipData);
+
+      // 1. mimetype en 1ere position, non compresse.
+      expect(outArchive.first.name, 'mimetype');
+      expect(outArchive.first.compress, isFalse);
+      expect(
+        utf8.decode(outArchive.first.content as List<int>),
+        'application/vnd.oasis.opendocument.presentation',
+      );
+
+      // 2. L'image jour_0.jpg est presente dans l'archive.
+      final imgFile = outArchive.findFile('Pictures/jour_0.jpg');
+      expect(imgFile, isNotNull,
+          reason: 'L\'image du jour doit etre dans l\'archive');
+
+      // 3. L'image jour_0.jpg est declaree dans le manifest.
+      final outManifest = utf8.decode(
+        outArchive.findFile('META-INF/manifest.xml')!.content as List<int>,
+        allowMalformed: true,
+      );
+      expect(
+        outManifest,
+        contains('manifest:full-path="Pictures/jour_0.jpg"'),
+        reason: 'Chaque fichier de l\'archive doit etre declare dans le manifest',
+      );
+
+      // 4. content.xml est bien forme (pas de placeholders restants).
+      final outContent = utf8.decode(
+        outArchive.findFile('content.xml')!.content as List<int>,
+        allowMalformed: true,
+      );
+      expect(outContent, isNot(contains('{{')));
+      expect(outContent, contains('Pictures/jour_0.jpg'));
     });
   });
 }

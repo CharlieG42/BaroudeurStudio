@@ -16,8 +16,7 @@ import 'odp_content_filler.dart';
 
 /// Service d'export ODP (OpenDocument Presentation) pour les treks.
 ///
-/// A la difference de l'ancienne implementation qui reconstruisait tout le
-/// document ODP a la main, ce service se base sur le template
+/// Ce service se base sur le template
 /// `assets/templates/template_baroudeurstudio.odp` (realise sous LibreOffice).
 /// Le template apporte sa propre mise en page (styles, master-pages, polices,
 /// couleurs, orientation, image de couverture...). Le service se contente de:
@@ -31,6 +30,11 @@ import 'odp_content_filler.dart';
 /// - mettre a jour `META-INF/manifest.xml` avec les nouvelles images,
 /// - re-encoder le ZIP avec mimetype en premier et non compresse
 ///   (obligatoire pour la conformite ODP).
+///
+/// IMPORTANT: le package `archive` 3.x a un bug dans `removeFile()` qui
+/// corrompt les `_fileMap` apres suppression d'un fichier (les index ne sont
+/// pas recalcules). On evite donc `removeFile` en construisant une nouvelle
+/// archive a partir des contenus lus immediatement apres le decodage.
 class OdpExportService {
   /// Chemin du template ODP dans les assets Flutter.
   static const String templateAssetPath =
@@ -55,13 +59,17 @@ class OdpExportService {
     final archive =
         ZipDecoder().decodeBytes(templateBytes.buffer.asUint8List());
 
-    // 3. Lire content.xml et le remplir.
-    final contentFile = archive.findFile('content.xml');
-    if (contentFile == null) {
-      throw StateError('Le template ODP ne contient pas de content.xml');
+    // 3. Lire IMMEDIATEMENT le contenu de tous les fichiers du template dans
+    //    des variables locales. C'est necessaire car le package `archive` 3.x
+    //    a un bug: apres removeFile(), les index internes (_fileMap) ne sont
+    //    pas recalcules et findFile() renvoie des contenus corrompus.
+    final fileContents = <String, Uint8List>{};
+    for (final file in archive) {
+      if (file.isFile) {
+        final data = file.content as List<int>;
+        fileContents[file.name] = Uint8List.fromList(data);
+      }
     }
-    final contentXml =
-        utf8.decode(contentFile.content as List<int>, allowMalformed: true);
 
     // 4. Determiner le chemin d'image de chaque jour (dans l'archive).
     final jourImagePaths = <String?>[];
@@ -85,10 +93,13 @@ class OdpExportService {
       }
     }
 
+    // 5. Remplir content.xml avec les placeholders.
+    final contentXml = utf8.decode(fileContents['content.xml']!, allowMalformed: true);
     final filledContent =
         OdpContentFiller.fill(contentXml, trek, jours, jourImagePaths);
+    fileContents['content.xml'] = Uint8List.fromList(utf8.encode(filledContent));
 
-    // 5. Ajouter les images des jours dans l'archive.
+    // 6. Optimiser et ajouter les images des jours.
     for (int i = 0; i < jours.length; i++) {
       final imagePath = jourImagePaths[i];
       final firstPhoto = jourPhotoMedias[i];
@@ -100,66 +111,42 @@ class OdpExportService {
           _optimizeImageInIsolate,
           (imageBytes, AppConfig.imageCompressionQuality),
         );
-        archive.addFile(
-          ArchiveFile(imagePath, optimizedBytes.length, optimizedBytes),
-        );
+        fileContents[imagePath] = optimizedBytes;
       } catch (e) {
         debugPrint('Erreur lors du chargement de l\'image: $e');
       }
     }
 
-    // 6. Mettre a jour content.xml dans l'archive.
-    final contentBytes = Uint8List.fromList(utf8.encode(filledContent));
-    _replaceFileInArchive(archive, 'content.xml', contentBytes);
-
     // 7. Mettre a jour META-INF/manifest.xml avec les nouvelles images.
-    final manifestFile = archive.findFile('META-INF/manifest.xml');
-    if (manifestFile != null) {
-      final manifestXml =
-          utf8.decode(manifestFile.content as List<int>, allowMalformed: true);
-      final updatedManifest =
-          _addImagesToManifest(manifestXml, jourImagePaths);
-      _replaceFileInArchive(
-        archive,
-        'META-INF/manifest.xml',
-        Uint8List.fromList(utf8.encode(updatedManifest)),
-      );
-    }
+    final manifestXml = utf8.decode(
+      fileContents['META-INF/manifest.xml']!,
+      allowMalformed: true,
+    );
+    final updatedManifest = _addImagesToManifest(manifestXml, jourImagePaths);
+    fileContents['META-INF/manifest.xml'] =
+        Uint8List.fromList(utf8.encode(updatedManifest));
 
     // 8. Mettre a jour meta.xml avec le titre et la date.
-    final metaFile = archive.findFile('meta.xml');
-    if (metaFile != null) {
-      final metaXml =
-          utf8.decode(metaFile.content as List<int>, allowMalformed: true);
-      final updatedMeta = _updateMetaXml(metaXml, trek);
-      _replaceFileInArchive(
-        archive,
-        'meta.xml',
-        Uint8List.fromList(utf8.encode(updatedMeta)),
-      );
-    }
+    final metaXml = utf8.decode(fileContents['meta.xml']!, allowMalformed: true);
+    final updatedMeta = _updateMetaXml(metaXml, trek);
+    fileContents['meta.xml'] = Uint8List.fromList(utf8.encode(updatedMeta));
 
     // 9. Re-encoder l'archive: mimetype en premier et non compresse.
     //
-    // On reconstruit une nouvelle archive pour controler l'ordre des entrees
-    // (le mimetype doit etre le premier fichier, stocke sans compression,
-    // c'est une obligation du format ODP/ODF).
+    // On reconstruit une nouvelle archive en copiant les fichiers du template
+    // dans l'ordre original, en utilisant les contenus (eventuellement
+    // modifies) lus a l'etape 3. Le mimetype doit etre le premier fichier,
+    // stocke sans compression (obligation du format ODP/ODF).
     final newArchive = Archive();
 
     // mimetype en premier, non compresse.
-    final mimetypeFile = archive.findFile('mimetype');
-    if (mimetypeFile != null) {
-      final mtContent = mimetypeFile.content as List<int>;
-      final mt = ArchiveFile(
-        'mimetype',
-        mtContent.length,
-        Uint8List.fromList(mtContent),
-      );
-      mt.compress = false;
-      newArchive.addFile(mt);
-    }
+    final mimetypeData = fileContents['mimetype']!;
+    final mt = ArchiveFile('mimetype', mimetypeData.length, mimetypeData);
+    mt.compress = false;
+    newArchive.addFile(mt);
+    fileContents.remove('mimetype');
 
-    // Ajouter le reste des fichiers (fichiers et repertoires) du template.
+    // Ajouter le reste des fichiers dans l'ordre original du template.
     for (final file in archive) {
       if (file.name == 'mimetype') continue;
       if (!file.isFile) {
@@ -167,11 +154,25 @@ class OdpExportService {
         newArchive.addFile(file);
         continue;
       }
-      // Fichier regulier: copier le contenu et forcer la compression.
-      final data = file.content as List<int>;
-      final copy = ArchiveFile(file.name, data.length, Uint8List.fromList(data));
+      final data = fileContents[file.name];
+      if (data == null) continue;
+      final copy = ArchiveFile(file.name, data.length, data);
       copy.compress = true;
       newArchive.addFile(copy);
+      fileContents.remove(file.name);
+    }
+
+    // Ajouter les nouvelles images (jour_x.jpg) qui ne sont pas dans le template.
+    for (final entry in fileContents.entries) {
+      if (entry.key.startsWith('Pictures/jour_')) {
+        final copy = ArchiveFile(
+          entry.key,
+          entry.value.length,
+          entry.value,
+        );
+        copy.compress = true;
+        newArchive.addFile(copy);
+      }
     }
 
     final zipData = ZipEncoder().encode(newArchive);
@@ -186,19 +187,6 @@ class OdpExportService {
     final file = File(filePath);
     await file.writeAsBytes(zipData);
     return file;
-  }
-
-  /// Remplace (ou ajoute) un fichier dans l'archive.
-  void _replaceFileInArchive(
-    Archive archive,
-    String name,
-    Uint8List bytes,
-  ) {
-    final existing = archive.findFile(name);
-    if (existing != null) {
-      archive.removeFile(existing);
-    }
-    archive.addFile(ArchiveFile(name, bytes.length, bytes));
   }
 
   /// Ajoute les entrees manifest pour les images de jour qui ne sont pas
