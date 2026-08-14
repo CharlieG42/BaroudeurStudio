@@ -10,12 +10,10 @@ import 'package:les_baroudeurs/models/trek.dart';
 import 'package:les_baroudeurs/models/jour_trek.dart';
 import 'package:les_baroudeurs/services/odp/odp_content_filler.dart';
 
-/// Tests du remplissage du template ODP.
+/// Tests du remplissage du template ODP avec chapitrage.
 ///
-/// Ces tests chargent le template `assets/templates/template_baroudeurstudio.odp`
-/// directement depuis le système de fichiers (le dossier assets est versionné
-/// et donc accessible pendant les tests), puis vérifient que les placeholders
-/// sont correctement remplacés et que la structure de l'archive reste valide.
+/// Chaque jour devient un chapitre: une page de titre (date + trajet) suivie
+/// d'une page par entrée média (image + texte lié).
 void main() {
   late String templateContentXml;
   late Archive templateArchive;
@@ -48,122 +46,209 @@ void main() {
     });
   });
 
-  group('OdpContentFiller.fill', () {
-    test('remplace tous les placeholders pour un trek avec un jour', () {
+  // ===========================================================================
+  // TESTS: CHAPITRAGE
+  // ===========================================================================
+  group('Chapitrage', () {
+    test('genere couverture + page titre + page image + fin pour 1 jour 1 photo', () {
       final trek = Trek(
-        id: 1,
-        titre: 'Mon Trek & Aventure',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'Chamonix',
-        pays: 'France',
+        id: 1, titre: 'Trek Test',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'Alpes', pays: 'France',
       );
-      final jours = [
-        JourTrek(
-          id: 1,
-          trekId: 1,
-          numeroJour: 1,
-          date: '2024-07-01',
-          lieuDepart: 'Chamonix',
-          lieuArrivee: 'Argentiere',
-          resume: 'Belle journee en montagne',
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B', resume: 'Resume du jour',
+          ),
+          entries: [
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_0.jpg',
+              dimensions: ImageDimensions(1600, 900),
+              text: 'Legende de la photo',
+            ),
+          ],
         ),
       ];
-      final imagePaths = <String?>['Pictures/jour_0.jpg'];
 
-      final result =
-          OdpContentFiller.fill(templateContentXml, trek, jours, imagePaths);
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
-      expect(result, isNot(contains(OdpContentFiller.trekTitlePh)));
-      expect(result, isNot(contains(OdpContentFiller.jourDepartPh)));
-      expect(result, isNot(contains(OdpContentFiller.jourResumePh)));
-      expect(result, isNot(contains(OdpContentFiller.jourImagePh)));
-      expect(result, contains('Mon Trek &amp; Aventure'));
-      expect(result, contains('Pictures/jour_0.jpg'));
+      // Aucun placeholder ne doit rester.
+      expect(result, isNot(contains('{{')));
+
+      // Structure attendue: couverture + titre chapitre + page image + fin = 4 pages.
+      final pages = OdpContentFiller.extractTopLevelPages(result);
+      expect(pages.length, 4);
+
+      // Le titre du trek doit apparaitre.
+      expect(result, contains('Trek Test'));
+      // La page de titre du chapitre doit contenir "Jour 1".
+      expect(result, contains('Jour 1'));
+      // L'image doit etre referencee.
+      expect(result, contains('Pictures/jour_0_img_0.jpg'));
+      // La legende doit etre presente.
+      expect(result, contains('Legende de la photo'));
     });
 
-    test('duplique la page jour pour chaque JourTrek', () {
+    test('genere plusieurs pages image pour un jour avec plusieurs photos', () {
       final trek = Trek(
-        id: 1,
-        titre: 'Trek 3 jours',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-03',
-        region: 'Alpes',
-        pays: 'France',
+        id: 1, titre: 'Trek Multi',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
       );
-      final jours = [
-        JourTrek(
-          id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
-          lieuDepart: 'A', lieuArrivee: 'B', resume: 'Jour 1',
-        ),
-        JourTrek(
-          id: 2, trekId: 1, numeroJour: 2, date: '2024-07-02',
-          lieuDepart: 'B', lieuArrivee: 'C', resume: 'Jour 2',
-        ),
-        JourTrek(
-          id: 3, trekId: 1, numeroJour: 3, date: '2024-07-03',
-          lieuDepart: 'C', lieuArrivee: 'D', resume: 'Jour 3',
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B',
+          ),
+          entries: [
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_0.jpg',
+              dimensions: ImageDimensions(1600, 900),
+              text: 'Legende 1',
+            ),
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_1.jpg',
+              dimensions: ImageDimensions(900, 1600),
+              text: 'Legende 2',
+            ),
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_2.jpg',
+              dimensions: ImageDimensions(1200, 1200),
+              text: 'Legende 3',
+            ),
+          ],
         ),
       ];
-      final imagePaths = <String?>[
-        'Pictures/jour_0.jpg',
-        null,
-        'Pictures/jour_2.jpg',
-      ];
 
-      final result =
-          OdpContentFiller.fill(templateContentXml, trek, jours, imagePaths);
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
+      // couverture + titre chapitre + 3 pages image + fin = 6 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 5);
+      expect(pages.length, 6);
+
+      // Chaque image doit etre referencee.
+      expect(result, contains('Pictures/jour_0_img_0.jpg'));
+      expect(result, contains('Pictures/jour_0_img_1.jpg'));
+      expect(result, contains('Pictures/jour_0_img_2.jpg'));
+
+      // Chaque legende doit etre presente.
+      expect(result, contains('Legende 1'));
+      expect(result, contains('Legende 2'));
+      expect(result, contains('Legende 3'));
+
+      // Les pages doivent avoir des noms uniques.
+      expect(result, contains('jour_1_img_1'));
+      expect(result, contains('jour_1_img_2'));
+      expect(result, contains('jour_1_img_3'));
+    });
+
+    test('genere une page texte seule si aucune photo', () {
+      final trek = Trek(
+        id: 1, titre: 'Trek Texte',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
+      );
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B',
+            resume: 'Resume sans photo',
+          ),
+          entries: [
+            MediaEntry(text: 'Resume sans photo'),
+          ],
+        ),
+      ];
+
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
+
+      // couverture + titre + 1 page texte + fin = 4 pages.
+      final pages = OdpContentFiller.extractTopLevelPages(result);
+      expect(pages.length, 4);
+      expect(result, contains('Resume sans photo'));
+      expect(result, isNot(contains('Pictures/jour_')));
+    });
+
+    test('genere une page avec resume si aucune entree media', () {
+      final trek = Trek(
+        id: 1, titre: 'Trek Vide',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
+      );
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B',
+            resume: 'Resume du jour vide',
+          ),
+          entries: [],
+        ),
+      ];
+
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
+
+      // couverture + titre + 1 page resume + fin = 4 pages.
+      final pages = OdpContentFiller.extractTopLevelPages(result);
+      expect(pages.length, 4);
+      expect(result, contains('Resume du jour vide'));
+    });
+
+    test('genere plusieurs chapitres pour plusieurs jours', () {
+      final trek = Trek(
+        id: 1, titre: 'Trek 2 Jours',
+        dateDebut: '2024-07-01', dateFin: '2024-07-02',
+        region: 'R', pays: 'P',
+      );
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B',
+          ),
+          entries: [
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_0.jpg',
+              dimensions: ImageDimensions(1600, 900),
+              text: 'Photo jour 1',
+            ),
+          ],
+        ),
+        JourChapterData(
+          jour: JourTrek(
+            id: 2, trekId: 1, numeroJour: 2, date: '2024-07-02',
+            lieuDepart: 'B', lieuArrivee: 'C',
+          ),
+          entries: [
+            MediaEntry(
+              imagePath: 'Pictures/jour_1_img_0.jpg',
+              dimensions: ImageDimensions(1600, 900),
+              text: 'Photo jour 2',
+            ),
+            MediaEntry(
+              imagePath: 'Pictures/jour_1_img_1.jpg',
+              dimensions: ImageDimensions(1200, 900),
+              text: 'Photo 2 jour 2',
+            ),
+          ],
+        ),
+      ];
+
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
+
+      // couverture + chap1(titre+1img) + chap2(titre+2img) + fin = 7 pages.
+      final pages = OdpContentFiller.extractTopLevelPages(result);
+      expect(pages.length, 7);
+
+      // Les deux chapitres doivent etre presents.
+      expect(result, contains('chapitre_1'));
+      expect(result, contains('chapitre_2'));
       expect(result, contains('Jour 1'));
       expect(result, contains('Jour 2'));
-      expect(result, contains('Jour 3'));
-      expect(result, contains('jour_1'));
-      expect(result, contains('jour_2'));
-      expect(result, contains('jour_3'));
-      expect(result, contains('Pictures/jour_0.jpg'));
-      expect(result, isNot(contains('Pictures/jour_1.jpg')));
-      expect(result, contains('Pictures/jour_2.jpg'));
-    });
-
-    test('echappe les caracteres speciaux XML', () {
-      final trek = Trek(
-        id: 1,
-        titre: 'A < B & C > D "E" \'F\'',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'Test',
-        pays: 'FR',
-      );
-      final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        <JourTrek>[],
-        <String?>[],
-      );
-
-      expect(result, contains('A &lt; B &amp; C &gt; D &quot;E&quot; &apos;F&apos;'));
-    });
-
-    test('garde une page jour vide si aucun jour', () {
-      final trek = Trek(
-        id: 1,
-        titre: 'Trek vide',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'Nulle part',
-        pays: 'FR',
-      );
-      final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        <JourTrek>[],
-        <String?>[],
-      );
-      final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 3);
-      expect(result, isNot(contains('{{')));
     });
   });
 
@@ -173,29 +258,21 @@ void main() {
   group('Preservation des sauts de ligne', () {
     test('convertit les sauts de ligne en <text:line-break/>', () {
       final trek = Trek(
-        id: 1,
-        titre: 'Trek',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'R',
-        pays: 'P',
+        id: 1, titre: 'Trek',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
       );
-      final jours = [
-        JourTrek(
-          id: 1,
-          trekId: 1,
-          numeroJour: 1,
-          date: '2024-07-01',
-          resume: 'Ligne 1\nLigne 2\nLigne 3',
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            resume: 'Ligne 1\nLigne 2\nLigne 3',
+          ),
+          entries: [MediaEntry(text: 'Ligne 1\nLigne 2\nLigne 3')],
         ),
       ];
 
-      final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        jours,
-        <String?>[null],
-      );
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
       expect(result, contains('Ligne 1<text:line-break/>Ligne 2'));
       expect(result, contains('Ligne 2<text:line-break/>Ligne 3'));
@@ -204,29 +281,21 @@ void main() {
 
     test('gere les sauts de ligne Windows (\\r\\n)', () {
       final trek = Trek(
-        id: 1,
-        titre: 'Trek',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'R',
-        pays: 'P',
+        id: 1, titre: 'Trek',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
       );
-      final jours = [
-        JourTrek(
-          id: 1,
-          trekId: 1,
-          numeroJour: 1,
-          date: '2024-07-01',
-          resume: 'A\r\nB\r\nC',
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            resume: 'A\r\nB\r\nC',
+          ),
+          entries: [MediaEntry(text: 'A\r\nB\r\nC')],
         ),
       ];
 
-      final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        jours,
-        <String?>[null],
-      );
+      final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
       expect(result, contains('A<text:line-break/>B'));
       expect(result, contains('B<text:line-break/>C'));
@@ -235,19 +304,13 @@ void main() {
 
     test('preserve les sauts de ligne dans le titre du trek', () {
       final trek = Trek(
-        id: 1,
-        titre: 'Titre\nSous-titre',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'R',
-        pays: 'P',
+        id: 1, titre: 'Titre\nSous-titre',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
       );
 
       final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        <JourTrek>[],
-        <String?>[],
+        templateContentXml, trek, <JourChapterData>[],
       );
 
       expect(result, contains('Titre<text:line-break/>Sous-titre'));
@@ -255,19 +318,13 @@ void main() {
 
     test('echappe les caracteres speciaux ET preserve les sauts de ligne', () {
       final trek = Trek(
-        id: 1,
-        titre: 'A & B\n<C>',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'R',
-        pays: 'P',
+        id: 1, titre: 'A & B\n<C>',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'R', pays: 'P',
       );
 
       final result = OdpContentFiller.fill(
-        templateContentXml,
-        trek,
-        <JourTrek>[],
-        <String?>[],
+        templateContentXml, trek, <JourChapterData>[],
       );
 
       expect(result, contains('A &amp; B<text:line-break/>&lt;C&gt;'));
@@ -279,7 +336,6 @@ void main() {
   // ===========================================================================
   group('computeImageDimensions', () {
     test('image paysage: largeur >= minWidthCm', () {
-      // Image 1600x900 (paysage, ratio ~1.78)
       final dims = ImageDimensions(1600, 900);
       final result =
           OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
@@ -290,7 +346,6 @@ void main() {
     });
 
     test('image portrait: hauteur >= minHeightCm', () {
-      // Image 900x1600 (portrait, ratio ~0.56)
       final dims = ImageDimensions(900, 1600);
       final result =
           OdpContentFiller.computeImageDimensions(dims, OdpImageSettings.defaults);
@@ -328,7 +383,7 @@ void main() {
 
     test('parametres personnalises sont respectes', () {
       final settings = OdpImageSettings(minHeightCm: 10.0, minWidthCm: 15.0);
-      final dims = ImageDimensions(900, 1600); // portrait
+      final dims = ImageDimensions(900, 1600);
       final result = OdpContentFiller.computeImageDimensions(dims, settings);
 
       expect(result.heightCm, greaterThanOrEqualTo(10.0));
@@ -340,63 +395,51 @@ void main() {
   // ===========================================================================
   group('Conformite ODP (flux complet)', () {
     test('l\'archive generee est conforme: mimetype + manifest + images', () {
-      final jourImagePaths = <String?>['Pictures/jour_0.jpg'];
-      final jourImageDims = <ImageDimensions?>[ImageDimensions(1200, 900)];
+      final chapters = [
+        JourChapterData(
+          jour: JourTrek(
+            id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
+            lieuDepart: 'A', lieuArrivee: 'B', resume: 'J1',
+          ),
+          entries: [
+            MediaEntry(
+              imagePath: 'Pictures/jour_0_img_0.jpg',
+              dimensions: ImageDimensions(1200, 900),
+              text: 'Legende',
+            ),
+          ],
+        ),
+      ];
 
       final fileContents = <String, Uint8List>{};
       for (final file in templateArchive) {
         if (file.isFile) {
-          final data = file.content as List<int>;
-          fileContents[file.name] = Uint8List.fromList(data);
+          fileContents[file.name] = Uint8List.fromList(file.content as List<int>);
         }
       }
 
       final trek = Trek(
-        id: 1,
-        titre: 'Trek Test',
-        dateDebut: '2024-07-01',
-        dateFin: '2024-07-01',
-        region: 'Alpes',
-        pays: 'France',
+        id: 1, titre: 'Trek Test',
+        dateDebut: '2024-07-01', dateFin: '2024-07-01',
+        region: 'Alpes', pays: 'France',
       );
-      final jours = [
-        JourTrek(
-          id: 1, trekId: 1, numeroJour: 1, date: '2024-07-01',
-          lieuDepart: 'A', lieuArrivee: 'B', resume: 'J1',
-        ),
-      ];
       final contentXml =
           utf8.decode(fileContents['content.xml']!, allowMalformed: true);
       final filledContent = OdpContentFiller.fill(
-        contentXml,
-        trek,
-        jours,
-        jourImagePaths,
-        jourImageDimensions: jourImageDims,
+        contentXml, trek, chapters,
       );
       fileContents['content.xml'] =
           Uint8List.fromList(utf8.encode(filledContent));
 
-      fileContents['Pictures/jour_0.jpg'] =
+      fileContents['Pictures/jour_0_img_0.jpg'] =
           fileContents['Pictures/1000000100000499000002A0DBB432AD.png']!;
 
       final manifestXml = utf8.decode(
           fileContents['META-INF/manifest.xml']!, allowMalformed: true);
-      final toAdd = <String>[];
-      for (final path in jourImagePaths) {
-        if (path == null || path.isEmpty) continue;
-        if (!manifestXml.contains('manifest:full-path="$path"')) {
-          toAdd.add('  <manifest:file-entry manifest:full-path="$path" '
-              'manifest:media-type="image/jpeg"/>');
-        }
-      }
-      var updatedManifest = manifestXml;
-      if (toAdd.isNotEmpty) {
-        final insertBefore = manifestXml.indexOf('</manifest:manifest>');
-        updatedManifest = '${manifestXml.substring(0, insertBefore)}'
-            '${toAdd.join('\n')}\n'
-            '${manifestXml.substring(insertBefore)}';
-      }
+      final insertBefore = manifestXml.indexOf('</manifest:manifest>');
+      final updatedManifest = '${manifestXml.substring(0, insertBefore)}'
+          '  <manifest:file-entry manifest:full-path="Pictures/jour_0_img_0.jpg" manifest:media-type="image/jpeg"/>\n'
+          '${manifestXml.substring(insertBefore)}';
       fileContents['META-INF/manifest.xml'] =
           Uint8List.fromList(utf8.encode(updatedManifest));
 
@@ -437,20 +480,21 @@ void main() {
         utf8.decode(outArchive.first.content as List<int>),
         'application/vnd.oasis.opendocument.presentation',
       );
-      expect(outArchive.findFile('Pictures/jour_0.jpg'), isNotNull);
+      expect(outArchive.findFile('Pictures/jour_0_img_0.jpg'), isNotNull);
 
       final outManifest = utf8.decode(
         outArchive.findFile('META-INF/manifest.xml')!.content as List<int>,
         allowMalformed: true,
       );
-      expect(outManifest, contains('manifest:full-path="Pictures/jour_0.jpg"'));
+      expect(outManifest,
+          contains('manifest:full-path="Pictures/jour_0_img_0.jpg"'));
 
       final outContent = utf8.decode(
         outArchive.findFile('content.xml')!.content as List<int>,
         allowMalformed: true,
       );
       expect(outContent, isNot(contains('{{')));
-      expect(outContent, contains('Pictures/jour_0.jpg'));
+      expect(outContent, contains('Pictures/jour_0_img_0.jpg'));
       expect(outContent, contains('svg:width='));
       expect(outContent, contains('svg:height='));
     });

@@ -12,16 +12,9 @@ import '../../models/jour_trek.dart';
 /// une hauteur minimum de 8cm OU une largeur minimum de 13cm. L'utilisateur
 /// peut ajuster ces valeurs via le menu Paramétrage.
 class OdpImageSettings {
-  /// Hauteur minimum de l'image en centimètres.
   final double minHeightCm;
-
-  /// Largeur minimum de l'image en centimètres.
   final double minWidthCm;
-
-  /// Largeur maximum de l'image en centimètres (pour ne pas déborder de la page).
   final double maxWidthCm;
-
-  /// Hauteur maximum de l'image en centimètres.
   final double maxHeightCm;
 
   const OdpImageSettings({
@@ -31,7 +24,6 @@ class OdpImageSettings {
     this.maxHeightCm = 20.0,
   });
 
-  /// Valeurs par défaut.
   static const OdpImageSettings defaults = OdpImageSettings();
 
   OdpImageSettings copyWith({
@@ -56,49 +48,68 @@ class ImageDimensions {
 
   const ImageDimensions(this.width, this.height);
 
-  /// Ratio largeur/hauteur de l'image.
   double get aspectRatio => height > 0 ? width / height : 1.0;
-
-  /// Indique si l'image est en mode paysage (largeur > hauteur).
   bool get isLandscape => width > height;
+}
+
+/// Une entrée média (image + texte associé) pour une page du document ODP.
+///
+/// Chaque jour peut avoir plusieurs entrées. Chaque entrée génère une page
+/// dédiée avec l'image et son texte lié (légende ou résumé du jour).
+class MediaEntry {
+  /// Chemin de l'image dans l'archive ODP (ex: Pictures/jour_0_img_0.jpg).
+  /// `null` si aucune image n'est associée à cette entrée.
+  final String? imagePath;
+
+  /// Dimensions en pixels de l'image (pour calculer le ratio).
+  final ImageDimensions? dimensions;
+
+  /// Texte associé à l'image (légende de la photo, ou résumé du jour
+  /// si aucune légende n'est définie).
+  final String text;
+
+  const MediaEntry({
+    this.imagePath,
+    this.dimensions,
+    required this.text,
+  });
+}
+
+/// Données d'un jour pour la génération du document ODP.
+///
+/// Chaque jour devient un "chapitre" : une page de titre (avec la date et
+/// le trajet) suivie d'une page par entrée média (image + texte lié).
+class JourChapterData {
+  final JourTrek jour;
+  final List<MediaEntry> entries;
+
+  const JourChapterData({required this.jour, required this.entries});
 }
 
 /// Remplacement des placeholders du template ODP `content.xml`.
 ///
 /// Le template (`assets/templates/template_baroudeurstudio.odp`) contient 3 pages:
 ///  - page 1 (couverture) avec le placeholder `{{TREK_TITLE}}`
-///  - page 2 (modele de page "jour") avec les placeholders `{{JOUR_DEPART}}`,
+///  - page 2 (modèle de page "jour") avec les placeholders `{{JOUR_DEPART}}`,
 ///    `{{JOUR_RESUME}}` et `{{JOUR_IMAGE_1}}`
 ///  - page 3 (page de fin) avec une image
 ///
-/// Cette classe se charge de:
-///  - remplir la couverture,
-///  - dupliquer la page "jour" pour chaque `JourTrek`,
-///  - préserver les sauts de ligne dans les textes (convertis en
-///    `<text:line-break/>`),
-///  - injecter une image par jour dans le frame `{{JOUR_IMAGE_1}}` en
-///    respectant le ratio d'origine et les dimensions minimum configurées,
-///  - renuméroter les pages / `draw:name`.
+/// Cette classe génère un document structuré en chapitres:
+///  - Page de couverture (titre du trek)
+///  - Pour chaque jour (chapitre):
+///    - Une page de titre (date + trajet)
+///    - Une page par entrée média (image + texte lié)
+///  - Page de fin
 ///
 /// Les méthodes sont pures (sans IO) afin d'être testables unitairement.
 class OdpContentFiller {
-  /// Nom du placeholder pour le titre du trek.
   static const String trekTitlePh = '{{TREK_TITLE}}';
-
-  /// Nom du placeholder pour le départ du jour.
   static const String jourDepartPh = '{{JOUR_DEPART}}';
-
-  /// Nom du placeholder pour le résumé du jour.
   static const String jourResumePh = '{{JOUR_RESUME}}';
-
-  /// Nom du placeholder pour l'image du jour.
   static const String jourImagePh = '{{JOUR_IMAGE_1}}';
 
-  /// Préfixe de balise ouvrante d'une page ODP.
   static const String _pageOpenTag = '<draw:page';
 
-  /// Indique si la position [idx] de [s] correspond bien à une balise
-  /// `<draw:page ...>` (et non à `<draw:page-thumbnail ...>`).
   static bool _isRealPageOpen(String s, int idx) {
     final afterPos = idx + _pageOpenTag.length;
     if (afterPos >= s.length) return true;
@@ -106,7 +117,6 @@ class OdpContentFiller {
     return ch == ' ' || ch == '>' || ch == '\t' || ch == '\n' || ch == '/';
   }
 
-  /// Recherche la prochaine vraie balise `<draw:page ...>` à partir de [from].
   static int _findPageOpen(String s, int from) {
     var pos = from;
     while (true) {
@@ -119,37 +129,24 @@ class OdpContentFiller {
 
   /// Remplit le `content.xml` du template avec les données du trek.
   ///
-  /// [contentXml] est le contenu brut du `content.xml` du template.
-  /// [jourImagePaths] contient, pour chaque jour (dans le même ordre que
-  /// [jours]), le chemin de l'image à insérer dans le frame
-  /// `{{JOUR_IMAGE_1}}` (ex: `Pictures/jour_0.jpg`). Une valeur `null`
-  /// signifie qu'il n'y a pas d'image pour ce jour (le placeholder est alors
-  /// simplement supprimé).
-  /// [jourImageDimensions] contient, pour chaque jour, les dimensions en
-  /// pixels de l'image (pour calculer le ratio et les dimensions d'affichage).
-  /// Si `null` ou manquant, les dimensions du template sont utilisées.
-  /// [imageSettings] contrôle les dimensions minimum/maximum des images.
+  /// [chapters] contient les données de chaque jour (chapitre), avec pour
+  /// chacun la liste des entrées média (image + texte lié).
   ///
-  /// Retourne le nouveau `content.xml` avec toutes les pages.
+  /// Structure générée:
+  /// - Couverture (titre du trek)
+  /// - Pour chaque chapitre: page de titre + page(s) image+texte
+  /// - Page de fin
   static String fill(
     String contentXml,
     Trek trek,
-    List<JourTrek> jours,
-    List<String?> jourImagePaths, {
-    List<ImageDimensions?>? jourImageDimensions,
+    List<JourChapterData> chapters, {
     OdpImageSettings imageSettings = OdpImageSettings.defaults,
   }) {
-    if (jours.length != jourImagePaths.length) {
-      throw ArgumentError(
-        'jours et jourImagePaths doivent avoir la même longueur',
-      );
-    }
-
     // 1. Remplir la couverture (page 1).
     final titre = escapeXml(trek.titre);
     contentXml = contentXml.replaceAll(trekTitlePh, titre);
 
-    // 2. Extraire la page "jour" (page 2) qui sert de modèle.
+    // 2. Extraire les pages du template.
     final dayPages = extractTopLevelPages(contentXml);
     if (dayPages.length < 3) {
       throw StateError(
@@ -160,35 +157,69 @@ class OdpContentFiller {
     final dayPageTemplate = dayPages[1];
     final endPage = dayPages[2];
 
-    // 3. Générer une page remplie pour chaque jour.
+    // 3. Générer les pages pour chaque chapitre.
     final dateFormat = DateFormat('EEEE d MMMM yyyy', 'fr');
-    final filledDayPages = <String>[];
-    for (int i = 0; i < jours.length; i++) {
-      final jour = jours[i];
-      final imagePath = jourImagePaths[i];
-      final imgDims = jourImageDimensions != null && i < jourImageDimensions.length
-          ? jourImageDimensions[i]
-          : null;
+    final allPages = <String>[coverPage];
+    int pageNumber = 2;
+
+    for (int ci = 0; ci < chapters.length; ci++) {
+      final chapter = chapters[ci];
+      final jour = chapter.jour;
       final jourDate = DateTime.tryParse(jour.date);
       final dateStr = jourDate != null ? dateFormat.format(jourDate) : jour.date;
       final departStr = jour.lieuDepart.isNotEmpty
           ? '${jour.lieuDepart} -> ${jour.lieuArrivee}'
           : dateStr;
-      final resume = jour.resume.isNotEmpty
-          ? jour.resume
-          : (jour.texteGenereIA ?? '');
 
-      String page = dayPageTemplate;
-      page = page.replaceAll(jourDepartPh, escapeXml(departStr));
-      page = page.replaceAll(jourResumePh, escapeXml(resume));
-      page = injectImage(page, jourImagePh, imagePath, imgDims, imageSettings);
-      // Renommer la page pour éviter les collisions de `draw:name`.
-      page = renamePage(page, 'jour_${i + 1}');
-      page = updatePageThumbnailNumber(page, i + 2);
-      filledDayPages.add(page);
+      // Page de titre du chapitre (Jour X - date + trajet)
+      String titlePage = dayPageTemplate;
+      titlePage = titlePage.replaceAll(
+          jourDepartPh, escapeXml('Jour ${jour.numeroJour} - $departStr'));
+      titlePage = titlePage.replaceAll(jourResumePh, escapeXml(dateStr));
+      titlePage = titlePage.replaceAll(jourImagePh, '');
+      titlePage = renamePage(titlePage, 'chapitre_${ci + 1}');
+      titlePage = updatePageThumbnailNumber(titlePage, pageNumber);
+      allPages.add(titlePage);
+      pageNumber++;
+
+      // Pages image + texte pour chaque entrée média
+      for (int ei = 0; ei < chapter.entries.length; ei++) {
+        final entry = chapter.entries[ei];
+        String page = dayPageTemplate;
+        // Titre: "Jour X - Photo Y" ou "Jour X - Texte" si pas d'image
+        final pageTitle = entry.imagePath != null
+            ? 'Jour ${jour.numeroJour} - Photo ${ei + 1}'
+            : 'Jour ${jour.numeroJour} - Texte ${ei + 1}';
+        page = page.replaceAll(jourDepartPh, escapeXml(pageTitle));
+        page = page.replaceAll(jourResumePh, escapeXml(entry.text));
+        page = injectImage(page, jourImagePh, entry.imagePath,
+            entry.dimensions, imageSettings);
+        page = renamePage(page, 'jour_${ci + 1}_img_${ei + 1}');
+        page = updatePageThumbnailNumber(page, pageNumber);
+        allPages.add(page);
+        pageNumber++;
+      }
+
+      // Si le jour n'a aucune entrée média, on garde quand même une page
+      // avec le résumé du jour (sans image).
+      if (chapter.entries.isEmpty) {
+        final resume = jour.resume.isNotEmpty
+            ? jour.resume
+            : (jour.texteGenereIA ?? '');
+        String page = dayPageTemplate;
+        page = page.replaceAll(jourDepartPh, escapeXml('Jour ${jour.numeroJour} - $departStr'));
+        page = page.replaceAll(jourResumePh, escapeXml(resume));
+        page = page.replaceAll(jourImagePh, '');
+        page = renamePage(page, 'jour_${ci + 1}');
+        page = updatePageThumbnailNumber(page, pageNumber);
+        allPages.add(page);
+        pageNumber++;
+      }
     }
 
-    // 4. Reconstruire le document: couverture + pages de jour + page de fin.
+    allPages.add(endPage);
+
+    // 4. Reconstruire le document.
     final presentationOpen = '<office:presentation>';
     final presentationClose = '</office:presentation>';
     final preStart = contentXml.indexOf(presentationOpen);
@@ -198,18 +229,7 @@ class OdpContentFiller {
     }
     final head = contentXml.substring(0, preStart + presentationOpen.length);
     final tail = contentXml.substring(postEnd);
-
-    final pages = <String>[coverPage];
-    if (filledDayPages.isEmpty) {
-      // Aucun jour: on garde la page modèle vide (placeholders supprimés).
-      pages.add(removeAllPlaceholders(dayPageTemplate));
-    } else {
-      pages.addAll(filledDayPages);
-    }
-    pages.add(endPage);
-
-    final rebuilt = head + pages.join('\n') + tail;
-    return rebuilt;
+    return head + allPages.join('\n') + tail;
   }
 
   /// Extrait les éléments `<draw:page ...>...</draw:page>` de premier niveau.
@@ -261,52 +281,34 @@ class OdpContentFiller {
   /// Calcule les dimensions d'affichage (largeur, hauteur) en centimètres
   /// pour une image donnée, en respectant son ratio d'origine et les
   /// contraintes minimum/maximum.
-  ///
-  /// Règle: la hauteur doit être au minimum [settings.minHeightCm] OU la
-  /// largeur au minimum [settings.minWidthCm], tout en respectant le ratio
-  /// et sans dépasser les maximums.
   static ({double widthCm, double heightCm}) computeImageDimensions(
     ImageDimensions? dims,
     OdpImageSettings settings,
   ) {
-    // Sans dimensions connues, on utilise les valeurs minimum comme carré.
     if (dims == null || dims.width <= 0 || dims.height <= 0) {
       return (widthCm: settings.minWidthCm, heightCm: settings.minHeightCm);
     }
 
-    final ratio = dims.aspectRatio; // width / height
-
-    // Calculer les dimensions qui satisfont les deux contraintes minimum.
-    // - Si on fixe la hauteur à minHeightCm, la largeur = minHeightCm * ratio.
-    // - Si on fixe la largeur à minWidthCm, la hauteur = minWidthCm / ratio.
-
-    // On choisit la dimension qui satisfait le mieux les deux minimums.
+    final ratio = dims.aspectRatio;
     double widthCm;
     double heightCm;
 
     if (dims.isLandscape) {
-      // Image paysage: la largeur est le facteur limitant.
-      // On veut largeur >= minWidthCm.
       widthCm = settings.minWidthCm;
       heightCm = widthCm / ratio;
-      // Mais s'assurer aussi que la hauteur >= minHeightCm.
       if (heightCm < settings.minHeightCm) {
         heightCm = settings.minHeightCm;
         widthCm = heightCm * ratio;
       }
     } else {
-      // Image portrait ou carrée: la hauteur est le facteur limitant.
-      // On veut hauteur >= minHeightCm.
       heightCm = settings.minHeightCm;
       widthCm = heightCm * ratio;
-      // Mais s'assurer aussi que la largeur >= minWidthCm.
       if (widthCm < settings.minWidthCm) {
         widthCm = settings.minWidthCm;
         heightCm = widthCm / ratio;
       }
     }
 
-    // Appliquer les maximums (en préservant le ratio).
     if (widthCm > settings.maxWidthCm) {
       widthCm = settings.maxWidthCm;
       heightCm = widthCm / ratio;
@@ -321,11 +323,8 @@ class OdpContentFiller {
 
   /// Injecte une image dans le frame qui contient [placeholder].
   ///
-  /// Le frame englobant (balise `draw:frame` contenant le placeholder) est
-  /// remplacé par un frame contenant une `draw:image` pointant vers
-  /// [imagePath]. Les dimensions du frame sont calculées à partir du ratio
-  /// de l'image ([dims]) et des [settings], en conservant la position (x, y)
-  /// du frame original du template.
+  /// Le frame englobant est remplacé par un frame contenant une `draw:image`
+  /// avec les dimensions calculées à partir du ratio de l'image.
   /// Si [imagePath] est null, le placeholder est simplement supprimé.
   static String injectImage(
     String page,
@@ -353,14 +352,11 @@ class OdpContentFiller {
     final frameEndPos = frameEnd + '</draw:frame>'.length;
     final originalFrame = page.substring(frameStart, frameEndPos);
 
-    // Extraire la position (x, y) du frame original pour conserver la mise
-    // en page définie dans le template.
     final x = _attr(originalFrame, 'svg:x');
     final y = _attr(originalFrame, 'svg:y');
     final styleName = _attr(originalFrame, 'draw:style-name');
     final textStyle = _attr(originalFrame, 'draw:text-style-name');
 
-    // Calculer les dimensions optimales en respectant le ratio.
     final computed = computeImageDimensions(dims, settings);
     final widthStr = '${_formatCm(computed.widthCm)}cm';
     final heightStr = '${_formatCm(computed.heightCm)}cm';
@@ -383,7 +379,6 @@ class OdpContentFiller {
     return page.substring(0, frameStart) + imageFrame + page.substring(frameEndPos);
   }
 
-  /// Renomme l'attribut `draw:name` de la première balise `draw:page`.
   static String renamePage(String page, String newName) {
     final openTagEnd = page.indexOf('>', page.indexOf('<draw:page'));
     final openTag = page.substring(0, openTagEnd + 1);
@@ -398,7 +393,6 @@ class OdpContentFiller {
         page.substring(openTagEnd + 1);
   }
 
-  /// Met à jour l'attribut `draw:page-number` d'un `draw:page-thumbnail`.
   static String updatePageThumbnailNumber(String page, int number) {
     return page.replaceAll(
       RegExp(r'draw:page-number="\d+"'),
@@ -406,32 +400,20 @@ class OdpContentFiller {
     );
   }
 
-  /// Supprime tous les placeholders `{{...}}` restants.
   static String removeAllPlaceholders(String s) {
     return s.replaceAll(RegExp(r'\{\{[^}]*\}\}'), '');
   }
 
-  /// Extrait la valeur d'un attribut `name="value"` depuis [tag].
   static String? _attr(String tag, String name) {
     final m = RegExp('$name="([^"]*)"').firstMatch(tag);
     return m?.group(1);
   }
 
-  /// Formate une valeur en centimètres avec 3 décimales (format ODP).
-  static String _formatCm(double cm) {
-    return cm.toStringAsFixed(3);
-  }
+  static String _formatCm(double cm) => cm.toStringAsFixed(3);
 
   /// Échappe les caractères spéciaux XML et convertit les sauts de ligne
-  /// (`\n`, `\r\n`) en éléments `<text:line-break/>` pour préserver la mise
-  /// en forme du texte dans le document ODP.
-  ///
-  /// En ODF, un saut de ligne simple (soft break) au sein d'un paragraphe
-  /// est représenté par `<text:line-break/>`. Cette méthode préserve donc les
-  /// sauts de ligne saisis par l'utilisateur dans les champs de texte
-  /// (résumé, émotions, découvertes, etc.).
+  /// (`\n`, `\r\n`) en éléments `<text:line-break/>`.
   static String escapeXml(String text) {
-    // D'abord échapper les caractères spéciaux.
     final escaped = text
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -439,14 +421,11 @@ class OdpContentFiller {
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&apos;');
 
-    // Ensuite convertir les sauts de ligne en <text:line-break/>.
-    // On normalise \r\n et \r en \n d'abord.
     return escaped
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
         .replaceAll('\n', '<text:line-break/>');
   }
 
-  /// Encode une chaîne en UTF-8 bytes.
   static Uint8List toUtf8Bytes(String s) => Uint8List.fromList(utf8.encode(s));
 }
