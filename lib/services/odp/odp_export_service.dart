@@ -18,14 +18,8 @@ import 'odp_content_filler.dart';
 /// Service d'export ODP (OpenDocument Presentation) pour les treks.
 ///
 /// Le document généré est structuré en chapitres: chaque jour devient un
-/// chapitre avec une page de titre (date + trajet) suivie d'une page par
-/// photo (image + texte/légende lié). Le ratio d'origine des images est
-/// respecté, avec une hauteur minimum de 8cm ou une largeur minimum de 13cm.
-///
-/// IMPORTANT: le package `archive` 3.x a un bug dans `removeFile()` qui
-/// corrompt les `_fileMap` après suppression d'un fichier. On évite donc
-/// `removeFile` en construisant une nouvelle archive à partir des contenus
-/// lus immédiatement après le décodage.
+/// chapitre avec une page d'introduction (résumé + photo de couverture si
+/// définie) suivie d'une page par photo (image + texte/légende lié).
 class OdpExportService {
   static const String templateAssetPath =
       'assets/templates/template_baroudeurstudio.odp';
@@ -33,8 +27,6 @@ class OdpExportService {
   static const String odpMimeType =
       'application/vnd.oasis.opendocument.presentation';
 
-  /// Paramètres de dimensionnement des images (modifiables via le menu
-  /// Paramétrage).
   OdpImageSettings imageSettings = OdpImageSettings.defaults;
 
   /// Génère un fichier ODP à partir d'un trek, en se basant sur le template.
@@ -74,14 +66,11 @@ class OdpExportService {
       final entries = <MediaEntry>[];
 
       if (photos.isEmpty) {
-        // Aucune photo: une entrée texte seule avec le résumé du jour.
         final resume = jour.resume.isNotEmpty
             ? jour.resume
             : (jour.texteGenereIA ?? '');
         entries.add(MediaEntry(text: resume));
       } else {
-        // Une entrée par photo, avec sa légende (ou le résumé du jour
-        // si la légende est vide et qu'il s'agit de la première photo).
         for (int pi = 0; pi < photos.length; pi++) {
           final photo = photos[pi];
           final imagePath = 'Pictures/jour_${ji}_img_$pi.jpg';
@@ -101,26 +90,39 @@ class OdpExportService {
 
           // Charger et optimiser l'image.
           ImageDimensions? dims;
+          bool imageLoaded = false;
           try {
             final file = File(photo.cheminFichier);
             final imageBytes = await file.readAsBytes();
+            // Lire les dimensions de l'image originale (avant optimisation).
+            dims = _readImageDimensions(imageBytes);
             final optimizedBytes = await compute(
               _optimizeImageInIsolate,
               (imageBytes, AppConfig.imageCompressionQuality),
             );
             fileContents[imagePath] = optimizedBytes;
-            dims = _readImageDimensions(optimizedBytes);
+            imageLoaded = true;
           } catch (e) {
-            debugPrint('Erreur lors du chargement de l\'image: $e');
+            debugPrint('Erreur lors du chargement de l\'image $imagePath: $e');
+            // Si l'optimisation échoue, essayer d'utiliser l'image originale.
+            try {
+              final file = File(photo.cheminFichier);
+              final originalBytes = await file.readAsBytes();
+              fileContents[imagePath] = originalBytes;
+              imageLoaded = true;
+              debugPrint('Image originale utilisée pour $imagePath');
+            } catch (e2) {
+              debugPrint('Échec total du chargement de $imagePath: $e2');
+            }
           }
 
           entries.add(MediaEntry(
-            imagePath: fileContents.containsKey(imagePath) ? imagePath : null,
+            imagePath: imageLoaded ? imagePath : null,
             dimensions: dims,
             text: text,
             estCouverture: photo.estCouverture,
           ));
-          if (fileContents.containsKey(imagePath)) {
+          if (imageLoaded) {
             allImagePaths.add(imagePath);
           }
         }
@@ -162,6 +164,7 @@ class OdpExportService {
     newArchive.addFile(mt);
     fileContents.remove('mimetype');
 
+    // Copier les fichiers du template dans l'ordre original.
     for (final file in archive) {
       if (file.name == 'mimetype') continue;
       if (!file.isFile) {
@@ -169,24 +172,24 @@ class OdpExportService {
         continue;
       }
       final data = fileContents[file.name];
-      if (data == null) continue;
-      final copy = ArchiveFile(file.name, data.length, data);
-      copy.compress = true;
-      newArchive.addFile(copy);
-      fileContents.remove(file.name);
-    }
-
-    // Ajouter les nouvelles images qui ne sont pas dans le template.
-    for (final entry in fileContents.entries) {
-      if (entry.key.startsWith('Pictures/jour_')) {
-        final copy = ArchiveFile(
-          entry.key,
-          entry.value.length,
-          entry.value,
-        );
+      if (data != null) {
+        final copy = ArchiveFile(file.name, data.length, data);
         copy.compress = true;
         newArchive.addFile(copy);
       }
+    }
+
+    // Ajouter les nouvelles images (jour_x_img_y.jpg) qui ne sont pas dans le
+    // template. On utilise une snapshot des clés pour éviter tout problème
+    // de modification concurrente.
+    final jourImageKeys = fileContents.keys
+        .where((k) => k.startsWith('Pictures/jour_'))
+        .toList();
+    for (final key in jourImageKeys) {
+      final data = fileContents[key]!;
+      final copy = ArchiveFile(key, data.length, data);
+      copy.compress = true;
+      newArchive.addFile(copy);
     }
 
     final zipData = ZipEncoder().encode(newArchive);
@@ -210,7 +213,7 @@ class OdpExportService {
       if (decoded == null) return null;
       return ImageDimensions(decoded.width, decoded.height);
     } catch (e) {
-      debugPrint('Erreur lors de la lecture des dimensions de l\'image: $e');
+      debugPrint('Erreur lors de la lecture des dimensions: $e');
       return null;
     }
   }
