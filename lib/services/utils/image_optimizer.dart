@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import '../../config/app_config.dart';
 
 /// Utilitaires pour l'optimisation des images.
 ///
