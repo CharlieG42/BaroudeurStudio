@@ -145,13 +145,8 @@ class OdpContentFiller {
     List<JourChapterData> chapters, {
     OdpImageSettings imageSettings = OdpImageSettings.defaults,
   }) {
-    // 1. Remplir la couverture (page 1) + préambule.
-    final titre = escapeXml(trek.titre);
-    contentXml = contentXml.replaceAll(trekTitlePh, titre);
-    final preambule = escapeXml(trek.preambule);
-    contentXml = contentXml.replaceAll(preambulePh, preambule);
-
-    // 2. Extraire les pages du template.
+    // 1. Extraire les pages du template AVANT de remplacer les placeholders.
+    // (Nécessaire car la détection de la page préambule cherche {{PREAMBULE}}.)
     final dayPages = extractTopLevelPages(contentXml);
     if (dayPages.length < 3) {
       throw StateError(
@@ -159,12 +154,31 @@ class OdpContentFiller {
       );
     }
     final coverPage = dayPages[0];
-    final dayPageTemplate = dayPages[1];
-    final endPage = dayPages[2];
+    // Si le template a 4+ pages, la page 2 est le préambule (conservée telle
+    // quelle), la page 3 est le modèle de page "jour", et la dernière est la
+    // page de fin. Avec 3 pages, la page 2 est le modèle "jour".
+    final hasPreambulePage = dayPages.length >= 4 &&
+        dayPages[1].contains(preambulePh);
+    final preambulePage = hasPreambulePage ? dayPages[1] : null;
+    final dayPageTemplate = hasPreambulePage ? dayPages[2] : dayPages[1];
+    final endPage = hasPreambulePage ? dayPages[3] : dayPages[2];
+
+    // 2. Remplir la couverture (page 1) + préambule.
+    final titre = escapeXml(trek.titre);
+    contentXml = contentXml.replaceAll(trekTitlePh, titre);
+    final preambule = escapeXml(trek.preambule);
+    contentXml = contentXml.replaceAll(preambulePh, preambule);
 
     // 3. Générer les pages pour chaque chapitre.
     final dateFormat = DateFormat('EEEE d MMMM yyyy', 'fr');
-    final allPages = <String>[coverPage];
+    // Remplir les placeholders dans les pages extraites.
+    final filledCover = coverPage.replaceAll(trekTitlePh, titre);
+    final filledPreambule = preambulePage?.replaceAll(preambulePh, preambule);
+
+    final allPages = <String>[filledCover];
+    if (filledPreambule != null) {
+      allPages.add(filledPreambule);
+    }
     int pageNumber = 2;
 
     for (int ci = 0; ci < chapters.length; ci++) {

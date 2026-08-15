@@ -77,9 +77,9 @@ void main() {
       // Aucun placeholder ne doit rester.
       expect(result, isNot(contains('{{')));
 
-      // Structure attendue: couverture + titre chapitre + page image + fin = 4 pages.
+      // Structure: couverture + préambule + titre chapitre + page image + fin = 5 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 4);
+      expect(pages.length, 5);
 
       // Le titre du trek doit apparaitre.
       expect(result, contains('Trek Test'));
@@ -125,9 +125,9 @@ void main() {
 
       final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
-      // couverture + titre chapitre + 3 pages image + fin = 6 pages.
+      // couverture + préambule + titre chapitre + 3 pages image + fin = 7 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 6);
+      expect(pages.length, 7);
 
       // Chaque image doit etre referencee.
       expect(result, contains('Pictures/jour_0_img_0.jpg'));
@@ -166,9 +166,9 @@ void main() {
 
       final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
-      // couverture + titre + 1 page texte + fin = 4 pages.
+      // couverture + préambule + titre + 1 page texte + fin = 5 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 4);
+      expect(pages.length, 5);
       expect(result, contains('Resume sans photo'));
       expect(result, isNot(contains('Pictures/jour_')));
     });
@@ -192,9 +192,9 @@ void main() {
 
       final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
-      // couverture + titre + 1 page resume + fin = 4 pages.
+      // couverture + préambule + titre + 1 page resume + fin = 5 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 4);
+      expect(pages.length, 5);
       expect(result, contains('Resume du jour vide'));
     });
 
@@ -240,9 +240,9 @@ void main() {
 
       final result = OdpContentFiller.fill(templateContentXml, trek, chapters);
 
-      // couverture + chap1(titre+1img) + chap2(titre+2img) + fin = 7 pages.
+      // couverture + préambule + chap1(titre+1img) + chap2(titre+2img) + fin = 8 pages.
       final pages = OdpContentFiller.extractTopLevelPages(result);
-      expect(pages.length, 7);
+      expect(pages.length, 8);
 
       // Les deux chapitres doivent etre presents.
       expect(result, contains('chapitre_1'));
