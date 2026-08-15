@@ -2,7 +2,7 @@
 /// Contient les paramètres configurables par l'utilisateur
 class AppConfig {
   /// Version de l'application (doit être synchronisée avec pubspec.yaml)
-  static const String appVersion = '0.1.100';
+  static const String appVersion = '0.1.101';
 
   /// Qualité de compression des images pour l'export ODP
   /// Valeur entre 0 et 100 (0 = très compressé, 100 = qualité maximale)

@@ -73,7 +73,7 @@ class OdpExportService {
       } else {
         for (int pi = 0; pi < photos.length; pi++) {
           final photo = photos[pi];
-          final imagePath = 'Pictures/jour_${ji}_img_$pi.jpg';
+          final imagePath = 'Pictures/jour_${ji}_img_$pi.png';
 
           // Texte associé: la légende de la photo, ou le résumé du jour
           // pour la première photo si aucune légende n'est définie.
@@ -179,7 +179,7 @@ class OdpExportService {
       }
     }
 
-    // Ajouter les nouvelles images (jour_x_img_y.jpg) qui ne sont pas dans le
+    // Ajouter les nouvelles images (jour_x_img_y.png) qui ne sont pas dans le
     // template. On utilise une snapshot des clés pour éviter tout problème
     // de modification concurrente.
     final jourImageKeys = fileContents.keys
@@ -225,7 +225,7 @@ class OdpExportService {
       if (!manifestXml.contains('manifest:full-path="$path"')) {
         toAdd.add(
           '  <manifest:file-entry manifest:full-path="$path" '
-          'manifest:media-type="image/jpeg"/>',
+          'manifest:media-type="image/png"/>',
         );
       }
     }

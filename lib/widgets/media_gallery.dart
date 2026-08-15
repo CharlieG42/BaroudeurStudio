@@ -76,25 +76,19 @@ class _MediaGalleryState extends State<MediaGallery> {
       type: FileType.image,
       allowMultiple: true,
     );
-
     if (result == null || result.files.isEmpty) return;
-
     final compress = await _askCompressionChoice();
     if (compress == null) return;
-
     setState(() => _importing = true);
-
     for (final file in result.files) {
       final sourcePath = file.path;
       if (sourcePath == null) continue;
-
       try {
         final copiedPath = await _storageService.copyFileForJour(
           jourId: widget.jourId,
           sourcePath: sourcePath,
           compress: compress,
         );
-
         final media = Media(
           jourId: widget.jourId,
           type: _storageService.detectType(sourcePath),
@@ -102,7 +96,6 @@ class _MediaGalleryState extends State<MediaGallery> {
           nomOriginal: file.name,
           dateAjout: DateTime.now().toIso8601String(),
         );
-
         await DatabaseHelper.instance.insertMedia(media);
       } catch (e) {
         if (mounted) {
@@ -112,7 +105,6 @@ class _MediaGalleryState extends State<MediaGallery> {
         }
       }
     }
-
     setState(() => _importing = false);
     _loadMedias();
   }
@@ -136,7 +128,6 @@ class _MediaGalleryState extends State<MediaGallery> {
         ],
       ),
     );
-
     if (confirm == true) {
       await DatabaseHelper.instance.deleteMedia(media.id!);
       await _storageService.deleteFile(media.cheminFichier);
@@ -146,34 +137,24 @@ class _MediaGalleryState extends State<MediaGallery> {
 
   Future<void> _editLegende(Media media) async {
     final ctrl = TextEditingController(text: media.legende ?? '');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Legende de la photo'),
-        content: TextField(
+    final result = await Navigator.push<({String legende, bool couverture})>(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => _FullScreenLegendeEditor(
           controller: ctrl,
-          autofocus: true,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            hintText: 'ex: Vue depuis le col, marmotte croisee...',
-            border: OutlineInputBorder(),
-          ),
+          media: media,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Enregistrer'),
-          ),
-        ],
       ),
     );
-
     if (result != null && media.id != null) {
-      await DatabaseHelper.instance.updateMediaLegende(media.id!, result);
+      await DatabaseHelper.instance.updateMediaLegende(media.id!, result.legende);
+      if (result.couverture != media.estCouverture) {
+        if (result.couverture) {
+          await DatabaseHelper.instance.setMediaCouverture(media.id!, widget.jourId);
+        } else {
+          await DatabaseHelper.instance.setMediaCouverture(-1, widget.jourId);
+        }
+      }
       _loadMedias();
     }
   }
@@ -342,7 +323,7 @@ class _MediaGalleryState extends State<MediaGallery> {
   }
 }
 
-/// Éditeur de légende en plein écran avec option "photo de couverture".
+/// Editeur de legende en plein ecran avec option "photo de couverture".
 class _FullScreenLegendeEditor extends StatefulWidget {
   final TextEditingController controller;
   final Media media;
@@ -369,7 +350,7 @@ class _FullScreenLegendeEditorState extends State<_FullScreenLegendeEditor> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Légende de la photo'),
+        title: const Text('Legende de la photo'),
         actions: [
           TextButton(
             onPressed: () {
@@ -385,7 +366,7 @@ class _FullScreenLegendeEditorState extends State<_FullScreenLegendeEditor> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Aperçu de la photo
+          // Apercu de la photo
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.file(
@@ -401,15 +382,15 @@ class _FullScreenLegendeEditorState extends State<_FullScreenLegendeEditor> {
           ),
           const SizedBox(height: 16),
 
-          // Champ légende (grand, multi-lignes)
+          // Champ legende (grand, multi-lignes)
           TextField(
             controller: widget.controller,
             autofocus: true,
             maxLines: 12,
             expands: false,
             decoration: const InputDecoration(
-              labelText: 'Légende',
-              hintText: 'Décris cette photo.\nLe texte sera affiché à côté de la photo dans le document ODP.',
+              labelText: 'Legende',
+              hintText: 'Decris cette photo.\nLe texte sera affiche a cote de la photo dans le document ODP.',
               border: OutlineInputBorder(),
               alignLabelWithHint: true,
             ),
@@ -421,8 +402,8 @@ class _FullScreenLegendeEditorState extends State<_FullScreenLegendeEditor> {
             child: SwitchListTile(
               title: const Text('Photo de couverture du chapitre'),
               subtitle: const Text(
-                'Cette photo sera utilisée sur la page d\"introduction du jour '
-                '(avec le résumé). Une seule photo par jour peut être la couverture.',
+                'Cette photo sera utilisee sur la page d introduction du jour '
+                '(avec le resume). Une seule photo par jour peut etre la couverture.',
               ),
               value: _estCouverture,
               onChanged: (value) {

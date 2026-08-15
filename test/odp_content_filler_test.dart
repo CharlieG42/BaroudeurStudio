@@ -64,7 +64,7 @@ void main() {
           ),
           entries: [
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_0.jpg',
+              imagePath: 'Pictures/jour_0_img_0.png',
               dimensions: ImageDimensions(1600, 900),
               text: 'Legende de la photo',
             ),
@@ -86,7 +86,7 @@ void main() {
       // La page de titre du chapitre doit contenir "Jour 1".
       expect(result, contains('Jour 1'));
       // L'image doit etre referencee.
-      expect(result, contains('Pictures/jour_0_img_0.jpg'));
+      expect(result, contains('Pictures/jour_0_img_0.png'));
       // La legende doit etre presente.
       expect(result, contains('Legende de la photo'));
     });
@@ -105,17 +105,17 @@ void main() {
           ),
           entries: [
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_0.jpg',
+              imagePath: 'Pictures/jour_0_img_0.png',
               dimensions: ImageDimensions(1600, 900),
               text: 'Legende 1',
             ),
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_1.jpg',
+              imagePath: 'Pictures/jour_0_img_1.png',
               dimensions: ImageDimensions(900, 1600),
               text: 'Legende 2',
             ),
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_2.jpg',
+              imagePath: 'Pictures/jour_0_img_2.png',
               dimensions: ImageDimensions(1200, 1200),
               text: 'Legende 3',
             ),
@@ -130,9 +130,9 @@ void main() {
       expect(pages.length, 7);
 
       // Chaque image doit etre referencee.
-      expect(result, contains('Pictures/jour_0_img_0.jpg'));
-      expect(result, contains('Pictures/jour_0_img_1.jpg'));
-      expect(result, contains('Pictures/jour_0_img_2.jpg'));
+      expect(result, contains('Pictures/jour_0_img_0.png'));
+      expect(result, contains('Pictures/jour_0_img_1.png'));
+      expect(result, contains('Pictures/jour_0_img_2.png'));
 
       // Chaque legende doit etre presente.
       expect(result, contains('Legende 1'));
@@ -212,7 +212,7 @@ void main() {
           ),
           entries: [
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_0.jpg',
+              imagePath: 'Pictures/jour_0_img_0.png',
               dimensions: ImageDimensions(1600, 900),
               text: 'Photo jour 1',
             ),
@@ -225,12 +225,12 @@ void main() {
           ),
           entries: [
             MediaEntry(
-              imagePath: 'Pictures/jour_1_img_0.jpg',
+              imagePath: 'Pictures/jour_1_img_0.png',
               dimensions: ImageDimensions(1600, 900),
               text: 'Photo jour 2',
             ),
             MediaEntry(
-              imagePath: 'Pictures/jour_1_img_1.jpg',
+              imagePath: 'Pictures/jour_1_img_1.png',
               dimensions: ImageDimensions(1200, 900),
               text: 'Photo 2 jour 2',
             ),
@@ -403,7 +403,7 @@ void main() {
           ),
           entries: [
             MediaEntry(
-              imagePath: 'Pictures/jour_0_img_0.jpg',
+              imagePath: 'Pictures/jour_0_img_0.png',
               dimensions: ImageDimensions(1200, 900),
               text: 'Legende',
             ),
@@ -431,14 +431,14 @@ void main() {
       fileContents['content.xml'] =
           Uint8List.fromList(utf8.encode(filledContent));
 
-      fileContents['Pictures/jour_0_img_0.jpg'] =
+      fileContents['Pictures/jour_0_img_0.png'] =
           fileContents['Pictures/1000000100000499000002A0DBB432AD.png']!;
 
       final manifestXml = utf8.decode(
           fileContents['META-INF/manifest.xml']!, allowMalformed: true);
       final insertBefore = manifestXml.indexOf('</manifest:manifest>');
       final updatedManifest = '${manifestXml.substring(0, insertBefore)}'
-          '  <manifest:file-entry manifest:full-path="Pictures/jour_0_img_0.jpg" manifest:media-type="image/jpeg"/>\n'
+          '  <manifest:file-entry manifest:full-path="Pictures/jour_0_img_0.png" manifest:media-type="image/png"/>\n'
           '${manifestXml.substring(insertBefore)}';
       fileContents['META-INF/manifest.xml'] =
           Uint8List.fromList(utf8.encode(updatedManifest));
@@ -480,21 +480,21 @@ void main() {
         utf8.decode(outArchive.first.content as List<int>),
         'application/vnd.oasis.opendocument.presentation',
       );
-      expect(outArchive.findFile('Pictures/jour_0_img_0.jpg'), isNotNull);
+      expect(outArchive.findFile('Pictures/jour_0_img_0.png'), isNotNull);
 
       final outManifest = utf8.decode(
         outArchive.findFile('META-INF/manifest.xml')!.content as List<int>,
         allowMalformed: true,
       );
       expect(outManifest,
-          contains('manifest:full-path="Pictures/jour_0_img_0.jpg"'));
+          contains('manifest:full-path="Pictures/jour_0_img_0.png"'));
 
       final outContent = utf8.decode(
         outArchive.findFile('content.xml')!.content as List<int>,
         allowMalformed: true,
       );
       expect(outContent, isNot(contains('{{')));
-      expect(outContent, contains('Pictures/jour_0_img_0.jpg'));
+      expect(outContent, contains('Pictures/jour_0_img_0.png'));
       expect(outContent, contains('svg:width='));
       expect(outContent, contains('svg:height='));
     });

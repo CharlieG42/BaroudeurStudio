@@ -67,7 +67,7 @@ class _TrekListScreenState extends State<TrekListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Les Baroudeurs'),
+        title: const Text('BaroudeurStudio'),
         actions: [
           const AboutButton(),
         ],

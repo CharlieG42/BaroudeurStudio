@@ -8,9 +8,9 @@ import 'package:les_baroudeurs/main.dart';
 void main() {
   testWidgets('L\'application démarre et affiche l\'écran des treks',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const LesBaroudeursApp());
+    await tester.pumpWidget(const BaroudeurStudioApp());
 
     // L'AppBar doit afficher le titre de l'app.
-    expect(find.text('Les Baroudeurs'), findsOneWidget);
+    expect(find.text('BaroudeurStudio'), findsOneWidget);
   });
 }

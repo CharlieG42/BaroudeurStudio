@@ -28,7 +28,7 @@
     </queries>
 
     <application
-        android:label="baroudeurs_studio"
+        android:label="BaroudeurStudio"
         android:icon="@mipmap/ic_launcher">
 
         <activity

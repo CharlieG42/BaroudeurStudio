@@ -1,7 +1,7 @@
 name: les_baroudeurs
-description: "Application Les Baroudeurs - Carnet de trek vers livre illustre"
+description: "Application BaroudeurStudio - Carnet de trek vers livre illustre"
 publish_to: 'none'
-version: 0.1.100
+version: 0.1.101
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

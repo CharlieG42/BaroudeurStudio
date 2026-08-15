@@ -57,7 +57,7 @@ class ImageDimensions {
 /// Chaque jour peut avoir plusieurs entrées. Chaque entrée génère une page
 /// dédiée avec l'image et son texte lié (légende ou résumé du jour).
 class MediaEntry {
-  /// Chemin de l'image dans l'archive ODP (ex: Pictures/jour_0_img_0.jpg).
+  /// Chemin de l'image dans l'archive ODP (ex: Pictures/jour_0_img_0.png).
   /// `null` si aucune image n'est associée à cette entrée.
   final String? imagePath;
 
@@ -375,7 +375,7 @@ class OdpContentFiller {
         placeholder,
         '<draw:image xlink:href="$imagePath" xlink:type="simple" '
             'xlink:show="embed" xlink:actuate="onLoad" '
-            'draw:mime-type="image/jpeg"/>',
+            'draw:mime-type="image/png"/>',
       );
     }
     final frameEnd = page.indexOf('</draw:frame>', phIndex);
@@ -404,7 +404,7 @@ class OdpContentFiller {
         '<draw:frame$dimsBuffer draw:layer="layout">'
         '<draw:image xlink:href="$imagePath" xlink:type="simple" '
         'xlink:show="embed" xlink:actuate="onLoad" '
-        'draw:mime-type="image/jpeg"><text:p/></draw:image>'
+        'draw:mime-type="image/png"><text:p/></draw:image>'
         '</draw:frame>';
 
     return page.substring(0, frameStart) + imageFrame + page.substring(frameEndPos);

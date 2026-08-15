@@ -16,16 +16,16 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  runApp(const LesBaroudeursApp());
+  runApp(const BaroudeurStudioApp());
 }
 
-class LesBaroudeursApp extends StatelessWidget {
-  const LesBaroudeursApp({super.key});
+class BaroudeurStudioApp extends StatelessWidget {
+  const BaroudeurStudioApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Les Baroudeurs',
+      title: 'BaroudeurStudio',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2E7D32), // vert rando

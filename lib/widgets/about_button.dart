@@ -20,7 +20,7 @@ class AboutButton extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.terrain, size: 48, color: Colors.brown),
-        title: const Text('Les Baroudeurs'),
+        title: const Text('BaroudeurStudio'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
