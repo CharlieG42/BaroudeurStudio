@@ -32,6 +32,7 @@ class Media {
   final String nomOriginal; // nom du fichier original, pour référence
   final String? legende;
   final String dateAjout; // ISO8601
+  final bool estCouverture; // photo de couverture du chapitre (jour)
 
   Media({
     this.id,
@@ -41,6 +42,7 @@ class Media {
     required this.nomOriginal,
     this.legende,
     required this.dateAjout,
+    this.estCouverture = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -52,6 +54,7 @@ class Media {
       'nom_original': nomOriginal,
       'legende': legende,
       'date_ajout': dateAjout,
+      'est_couverture': estCouverture ? 1 : 0,
     };
   }
 
@@ -64,6 +67,7 @@ class Media {
       nomOriginal: map['nom_original'] as String,
       legende: map['legende'] as String?,
       dateAjout: map['date_ajout'] as String,
+      estCouverture: (map['est_couverture'] as int?) == 1,
     );
   }
 }

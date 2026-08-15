@@ -67,11 +67,13 @@ class MediaEntry {
   /// Texte associé à l'image (légende de la photo, ou résumé du jour
   /// si aucune légende n'est définie).
   final String text;
+  final bool estCouverture;
 
   const MediaEntry({
     this.imagePath,
     this.dimensions,
     required this.text,
+    this.estCouverture = false,
   });
 }
 
@@ -107,6 +109,7 @@ class OdpContentFiller {
   static const String jourDepartPh = '{{JOUR_DEPART}}';
   static const String jourResumePh = '{{JOUR_RESUME}}';
   static const String jourImagePh = '{{JOUR_IMAGE_1}}';
+  static const String preambulePh = '{{PREAMBULE}}';
 
   static const String _pageOpenTag = '<draw:page';
 
@@ -142,9 +145,11 @@ class OdpContentFiller {
     List<JourChapterData> chapters, {
     OdpImageSettings imageSettings = OdpImageSettings.defaults,
   }) {
-    // 1. Remplir la couverture (page 1).
+    // 1. Remplir la couverture (page 1) + préambule.
     final titre = escapeXml(trek.titre);
     contentXml = contentXml.replaceAll(trekTitlePh, titre);
+    final preambule = escapeXml(trek.preambule);
+    contentXml = contentXml.replaceAll(preambulePh, preambule);
 
     // 2. Extraire les pages du template.
     final dayPages = extractTopLevelPages(contentXml);
@@ -171,15 +176,27 @@ class OdpContentFiller {
           ? '${jour.lieuDepart} -> ${jour.lieuArrivee}'
           : dateStr;
 
-      // Page de titre du chapitre (Jour X - date + trajet)
-      String titlePage = dayPageTemplate;
-      titlePage = titlePage.replaceAll(
+      // Page d'introduction du chapitre (Jour X - date + trajet + résumé)
+      // Si une photo de couverture est définie, on l'injecte sur cette page.
+      final couvertureEntry = chapter.entries
+          .where((e) => e.estCouverture && e.imagePath != null)
+          .firstOrNull;
+      String introPage = dayPageTemplate;
+      introPage = introPage.replaceAll(
           jourDepartPh, escapeXml('Jour ${jour.numeroJour} - $departStr'));
-      titlePage = titlePage.replaceAll(jourResumePh, escapeXml(dateStr));
-      titlePage = titlePage.replaceAll(jourImagePh, '');
-      titlePage = renamePage(titlePage, 'chapitre_${ci + 1}');
-      titlePage = updatePageThumbnailNumber(titlePage, pageNumber);
-      allPages.add(titlePage);
+      final introText = jour.resume.isNotEmpty
+          ? jour.resume
+          : (jour.texteGenereIA ?? '');
+      introPage = introPage.replaceAll(jourResumePh, escapeXml(introText));
+      if (couvertureEntry != null) {
+        introPage = injectImage(introPage, jourImagePh,
+            couvertureEntry.imagePath, couvertureEntry.dimensions, imageSettings);
+      } else {
+        introPage = introPage.replaceAll(jourImagePh, '');
+      }
+      introPage = renamePage(introPage, 'chapitre_${ci + 1}');
+      introPage = updatePageThumbnailNumber(introPage, pageNumber);
+      allPages.add(introPage);
       pageNumber++;
 
       // Pages image + texte pour chaque entrée média

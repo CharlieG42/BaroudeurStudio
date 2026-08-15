@@ -35,7 +35,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -56,7 +56,8 @@ class DatabaseHelper {
         distance_km REAL,
         denivele_positif_m INTEGER,
         mode_voyage TEXT,
-        compagnons TEXT
+        compagnons TEXT,
+        preambule TEXT
       )
     ''');
 
@@ -97,6 +98,10 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, 'jours', 'chemin_gpx', 'TEXT');
       await _addColumnIfMissing(db, 'jours', 'texte_genere_ia', 'TEXT');
     }
+    if (oldVersion < 4) {
+      await _addColumnIfMissing(db, 'treks', 'preambule', 'TEXT');
+      await _addColumnIfMissing(db, 'medias', 'est_couverture', 'INTEGER DEFAULT 0');
+    }
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas deja.
@@ -125,6 +130,7 @@ class DatabaseHelper {
         nom_original TEXT,
         legende TEXT,
         date_ajout TEXT NOT NULL,
+        est_couverture INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (jour_id) REFERENCES jours (id) ON DELETE CASCADE
       )
     ''');
@@ -231,6 +237,26 @@ class DatabaseHelper {
       {'legende': legende},
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  /// Marque une photo comme photo de couverture du chapitre (jour).
+  /// Retire le statut de couverture des autres photos du meme jour.
+  Future<void> setMediaCouverture(int mediaId, int jourId) async {
+    final db = await database;
+    // Retirer le statut de couverture des autres photos du jour.
+    await db.update(
+      'medias',
+      {'est_couverture': 0},
+      where: 'jour_id = ? AND est_couverture = 1',
+      whereArgs: [jourId],
+    );
+    // Marquer la photo selectionnee.
+    await db.update(
+      'medias',
+      {'est_couverture': 1},
+      where: 'id = ?',
+      whereArgs: [mediaId],
     );
   }
 

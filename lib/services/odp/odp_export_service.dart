@@ -118,6 +118,7 @@ class OdpExportService {
             imagePath: fileContents.containsKey(imagePath) ? imagePath : null,
             dimensions: dims,
             text: text,
+            estCouverture: photo.estCouverture,
           ));
           if (fileContents.containsKey(imagePath)) {
             allImagePaths.add(imagePath);

@@ -23,6 +23,7 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
   late TextEditingController _deniveleCtrl;
   late TextEditingController _modeVoyageCtrl;
   late TextEditingController _compagnonsCtrl;
+  late TextEditingController _preambuleCtrl;
 
   DateTime? _dateDebut;
   DateTime? _dateFin;
@@ -46,6 +47,7 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
     );
     _modeVoyageCtrl = TextEditingController(text: trek?.modeVoyage ?? '');
     _compagnonsCtrl = TextEditingController(text: trek?.compagnons ?? '');
+    _preambuleCtrl = TextEditingController(text: trek?.preambule ?? '');
 
     if (trek != null) {
       _dateDebut = DateTime.tryParse(trek.dateDebut);
@@ -62,6 +64,7 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
     _deniveleCtrl.dispose();
     _modeVoyageCtrl.dispose();
     _compagnonsCtrl.dispose();
+    _preambuleCtrl.dispose();
     super.dispose();
   }
 
@@ -117,6 +120,7 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
           : int.tryParse(_deniveleCtrl.text.trim()),
       modeVoyage: _modeVoyageCtrl.text.trim(),
       compagnons: _compagnonsCtrl.text.trim(),
+      preambule: _preambuleCtrl.text.trim(),
     );
 
     if (_isEditing) {
@@ -241,6 +245,16 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
                 hintText: 'ex: Solo, ou noms séparés par des virgules',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _preambuleCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Préambule',
+                hintText: 'Texte d\'introduction du trek (affiché en page d\'ouverture)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 5,
             ),
             const SizedBox(height: 24),
             FilledButton.icon(

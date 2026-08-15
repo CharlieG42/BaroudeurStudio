@@ -301,6 +301,19 @@ class _MediaGalleryState extends State<MediaGallery> {
                         ),
                       ),
                     ),
+                    if (media.estCouverture)
+                      Positioned(
+                        top: 2,
+                        left: 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.star, color: Colors.white, size: 14),
+                        ),
+                      ),
                     if (media.legende != null && media.legende!.isNotEmpty)
                       Positioned(
                         bottom: 0,
@@ -325,6 +338,104 @@ class _MediaGalleryState extends State<MediaGallery> {
             },
           ),
       ],
+    );
+  }
+}
+
+/// Éditeur de légende en plein écran avec option "photo de couverture".
+class _FullScreenLegendeEditor extends StatefulWidget {
+  final TextEditingController controller;
+  final Media media;
+
+  const _FullScreenLegendeEditor({
+    required this.controller,
+    required this.media,
+  });
+
+  @override
+  State<_FullScreenLegendeEditor> createState() => _FullScreenLegendeEditorState();
+}
+
+class _FullScreenLegendeEditorState extends State<_FullScreenLegendeEditor> {
+  late bool _estCouverture;
+
+  @override
+  void initState() {
+    super.initState();
+    _estCouverture = widget.media.estCouverture;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Légende de la photo'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, (
+                legende: widget.controller.text.trim(),
+                couverture: _estCouverture,
+              ));
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Aperçu de la photo
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(widget.media.cheminFichier),
+              fit: BoxFit.contain,
+              height: 250,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 250,
+                color: Colors.grey.shade200,
+                child: const Icon(Icons.broken_image, size: 64, color: Colors.grey),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Champ légende (grand, multi-lignes)
+          TextField(
+            controller: widget.controller,
+            autofocus: true,
+            maxLines: 12,
+            expands: false,
+            decoration: const InputDecoration(
+              labelText: 'Légende',
+              hintText: 'Décris cette photo.\nLe texte sera affiché à côté de la photo dans le document ODP.',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Option: photo de couverture du chapitre
+          Card(
+            child: SwitchListTile(
+              title: const Text('Photo de couverture du chapitre'),
+              subtitle: const Text(
+                'Cette photo sera utilisée sur la page d\"introduction du jour '
+                '(avec le résumé). Une seule photo par jour peut être la couverture.',
+              ),
+              value: _estCouverture,
+              onChanged: (value) {
+                setState(() => _estCouverture = value);
+              },
+              secondary: Icon(
+                _estCouverture ? Icons.star : Icons.star_border,
+                color: _estCouverture ? Colors.amber : Colors.grey,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

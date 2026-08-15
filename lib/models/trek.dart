@@ -9,6 +9,7 @@ class Trek {
   final int? denivelePositifM;
   final String modeVoyage;
   final String compagnons;
+  final String preambule;
 
   Trek({
     this.id,
@@ -21,6 +22,7 @@ class Trek {
     this.denivelePositifM,
     this.modeVoyage = '',
     this.compagnons = '',
+    this.preambule = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -35,6 +37,7 @@ class Trek {
       'denivele_positif_m': denivelePositifM,
       'mode_voyage': modeVoyage,
       'compagnons': compagnons,
+      'preambule': preambule,
     };
   }
 
@@ -50,6 +53,7 @@ class Trek {
       denivelePositifM: map['denivele_positif_m'] as int?,
       modeVoyage: map['mode_voyage'] as String? ?? '',
       compagnons: map['compagnons'] as String? ?? '',
+      preambule: map['preambule'] as String? ?? '',
     );
   }
 
@@ -76,6 +80,7 @@ class Trek {
     int? denivelePositifM,
     String? modeVoyage,
     String? compagnons,
+    String? preambule,
   }) {
     return Trek(
       id: id ?? this.id,
@@ -88,6 +93,7 @@ class Trek {
       denivelePositifM: denivelePositifM ?? this.denivelePositifM,
       modeVoyage: modeVoyage ?? this.modeVoyage,
       compagnons: compagnons ?? this.compagnons,
+      preambule: preambule ?? this.preambule,
     );
   }
 }
