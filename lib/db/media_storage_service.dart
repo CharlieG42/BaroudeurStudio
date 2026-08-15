@@ -12,12 +12,9 @@ import '../models/media.dart';
 class MediaStorageService {
   static const _uuid = Uuid();
 
-  // Réglages de compression. Réduction de la plus longue dimension à
-  // 1920px et qualité JPEG 80% : largement suffisant pour de l'impression
-  // et pour servir de base pour des illustrations IA, tout en reduisant
-  // fortement le poids du fichier (souvent -80 à -90% vs original).
+  // Réduction de la plus longue dimension à 1920px : largement suffisant
+  // pour de l'impression et pour servir de base pour des illustrations IA.
   static const int _maxDimension = 1920;
-  static const int _jpegQuality = 80;
 
   /// Retourne (et crée si besoin) le dossier racine des médias de l'app.
   Future<Directory> _mediaRootDir() async {
@@ -32,10 +29,10 @@ class MediaStorageService {
   /// Copie un fichier source vers le dossier géré par l'app, pour un jour
   /// donné, et retourne le chemin absolu du fichier copié.
   ///
-  /// Si compress est true et que le fichier est une photo, l image est
-  /// redimensionnée/recompressée avant de etre enregistrée. Sinon (ou si la
-  /// compression échoue, ou si le fichier nest pas une photo), le fichier
-  /// original est copie tel quel.
+  /// Si compress est true et que le fichier est une photo, l'image est
+  /// redimensionnée/convertie en PNG avant d'être enregistrée. Sinon (ou si
+  /// la conversion échoue, ou si le fichier n'est pas une photo), le fichier
+  /// original est copié tel quel.
   Future<String> copyFileForJour({
     required int jourId,
     required String sourcePath,
@@ -71,24 +68,29 @@ class MediaStorageService {
     return destPath;
   }
 
-  /// Compresse une image et l'enregistre dans [destDir].
-  /// Retourne le chemin du fichier compressé, ou null en cas d'échec
-  /// (ex: format non supporté par le plugin sur cette plateforme).
+  /// Compresse/convertit une image et l'enregistre en PNG dans [destDir].
+  ///
+  /// Utilise flutter_image_compress qui supporte nativement le HEIC sur
+  /// Android/iOS. Le format de sortie est PNG (lossless) pour éviter tout
+  /// problème de compatibilité avec le package `image` (Dart pur) utilisé
+  /// lors de l'export ODP.
+  ///
+  /// Retourne le chemin du fichier converti, ou null en cas d'échec.
   Future<String?> _compressAndSave({
     required String sourcePath,
     required String destDir,
   }) async {
     try {
-      final destPath = p.join(destDir, '${_uuid.v4()}.jpg');
+      final destPath = p.join(destDir, '${_uuid.v4()}.png');
 
       final result = await FlutterImageCompress.compressAndGetFile(
         sourcePath,
         destPath,
-        quality: _jpegQuality,
+        quality: 90,
         minWidth: _maxDimension,
         minHeight: _maxDimension,
         keepExif: false,
-        format: CompressFormat.jpeg,
+        format: CompressFormat.png,
       );
 
       if (result == null) return null;
@@ -100,10 +102,9 @@ class MediaStorageService {
 
   bool _isCompressibleExt(String filePath) {
     final ext = p.extension(filePath).toLowerCase();
-    // Formats gérés de façon fiable par flutter_image_compress sur
-    // Android/Windows/macOS. HEIC est volontairement exclu : support
-    // inegal selon plateforme, on préfère copier l'original dans ce cas.
-    const supported = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'};
+    // Formats gérés par flutter_image_compress sur Android/iOS.
+    // HEIC est inclus : flutter_image_compress le convertit nativement en PNG.
+    const supported = {'.jpg', '.jpeg', '.png', '.heic', '.webp', '.bmp'};
     return supported.contains(ext);
   }
 
