@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/about_button.dart';
 import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
@@ -67,6 +68,9 @@ class _TrekListScreenState extends State<TrekListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Les Baroudeurs'),
+        actions: [
+          const AboutButton(),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
