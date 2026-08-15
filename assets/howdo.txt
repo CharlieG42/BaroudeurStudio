@@ -1,0 +1,27 @@
+MÉTHODE POUR TRANSFORMER UNE PHOTO EN STYLE MANGA/GHIBLI (FIDÉLITÉ 98%)
+
+1. OUTIL :
+   - Fonction : tools.image_generation.edit_image
+   - Approche : Éditer la photo originale (URL requise).
+
+2. PROMPT DE BASE :
+   "Transform this photo into [STYLE] style while preserving EVERY single detail, pixel-perfect accuracy.
+   Apply [STYLE_SPECIFICS], but maintain EXACT: [LISTE ÉLÉMENTS].
+   NO additions, NO removals, NO alterations to composition."
+
+3. STYLES :
+   - MANGA : "thick black ink outlines, cel-shading with vibrant colors"
+   - GHIBLI : "soft thin black outlines, watercolor textures, pastel colors, dreamy atmosphere"
+
+4. AJUSTEMENTS :
+   - Réduire un élément : "REDUCE [element] intensity by X%"
+   - Atténuer : "SOFTEN [element]"
+
+5. EXEMPLE COMPLET (Ghibli + reflets atténués) :
+   "Transform into Studio Ghibli style: soft thin outlines, watercolor textures, pastel colors.
+   REDUCE sun reflection by 70% on tent and sky. NO additions/removals. Pixel-perfect accuracy."
+
+6. BONNES PRATIQUES :
+   - Toujours éditer, jamais générer.
+   - Lister les éléments à conserver (ex: "tent, mountains, grass").
+   - Travailler par étapes (style → ajustements).
