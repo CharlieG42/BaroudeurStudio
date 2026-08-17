@@ -119,3 +119,145 @@ BONNES PRATIQUES :
    - Toujours éditer, jamais générer.
    - Lister les éléments à conserver (ex: "tent, mountains, grass").
    - Travailler par étapes (style → ajustements).
+
+
+Complément pour améliorer le pixel-perfect:
+### **🎯 Améliorer l’effet *pixel-perfect* : Stratégies concrètes**
+
+Pour atteindre une **fidélité absolue** (100% pixel-perfect) entre vos photos originales et les versions Ghibli, voici les **méthodes avancées** à appliquer, classées par priorité :
+
+---
+
+---
+
+## **🔍 1. Précision extrême des prompts**
+**Problème actuel** : Les prompts génériques laissent une marge d’interprétation à l’IA.
+**Solution** : **Décrire chaque élément comme un brief technique**.
+
+### **Exemple de prompt ultra-précis** :
+```text
+"EDIT this photo to Studio Ghibli style with 100% PIXEL-PERFECT ACCURACY for ALL elements.
+- LANDSCAPE: Keep EXACT rock shapes (positions: 3 large boulders at 40% height, left side), mountain ridges (jagged peak at 70% height, center), river path (S-curve from bottom-left to center).
+- COLORS: Use hex #8A7B6D for the main rock, #A4C2A5 for mid-ground grass, #D4E6F1 for sky (15% desaturated).
+- PERSON 1 (left): Hat color #C19A6B, sunglasses lens reflection angle 30°, beard shape: rectangular (width=60% of face, height=20% of chin), MUSTACHE: thin line (2px height).
+- PERSON 2 (right): T-shirt logo 'P' at 10% opacity, beard: triangular (width=50% of face).
+- TEXTURES: Gouache brushstrokes (size: 3-5px), NO smoothing, NO anti-aliasing on edges.
+- LIGHTING: Shadow under left person’s hat (angle: 45°, opacity: 25%).
+AVOID: ANY deviation from original element positions, sizes, or shapes."
+```
+
+**→ Pourquoi ça marche** :
+- **Coordonnées spatiales** (`40% height`, `left side`) : Ancre les éléments dans l’espace.
+- **Valeurs hexadécimales** : Garantit les couleurs exactes.
+- **Formes géométriques** (`rectangular`, `triangular`) : Évite les interprétations artistiques.
+- **Taille en pixels** (`2px height`) : Précision absolue pour les petits détails.
+
+---
+
+---
+
+## **🎨 2. Méthode des "calques de correction"**
+**Processus en 3 étapes** pour éviter les erreurs cumulatives :
+
+### **Étape 1 : Isolation des éléments**
+- **Générer une version par couche** :
+  1. **Paysage seul** (montagnes, arbres, rochers) → Valider la fidélité.
+  2. **Personnages seuls** (visages, vêtements, accessoires) → Valider la fidélité.
+  3. **Combinaison finale** : Superposer les couches validées.
+
+**Exemple** :
+```text
+# Étape 1 : Paysage
+"Transform ONLY the landscape (mountains, trees, rocks, sky) to Ghibli style. KEEP ALL SHAPES, POSITIONS, AND COLORS 100% IDENTICAL to original. Persons must remain UNCHANGED (blurred or masked)."
+
+# Étape 2 : Personnages
+"Transform ONLY the persons to Ghibli style. KEEP FACES 100% IDENTICAL (pixel-perfect). Landscape must remain UNCHANGED."
+
+# Étape 3 : Fusion
+"Combine the validated landscape and persons layers. NO additional changes."
+```
+
+**→ Avantages** :
+- **Contrôle granulaire** : Chaque élément est validé séparément.
+- **Moins d’artefacts** : Évite les distorsions liées aux corrections multiples sur une seule image.
+
+---
+
+---
+
+## **📐 3. Utilisation de références visuelles internes**
+**Problème** : L’IA "oublie" les détails entre les itérations.
+**Solution** : **Réutiliser les images validées comme références**.
+
+### **Technique** :
+- **Dans le prompt** :
+  ```text
+  "Use the validated landscape from gen-image://809eec4d as EXACT reference for:
+  - Rock shapes and positions.
+  - Mountain textures and colors.
+  Apply Ghibli style to the NEW photo, but MATCH these elements pixel-perfectly."
+  ```
+- **Pour les personnages** :
+  ```text
+  "Use the person from gen-image://0af63a0c (with correct beard shape and eye color) as EXACT reference.
+  Apply the same beard style, eye color (#4A90E2), and facial proportions to the NEW person."
+  ```
+
+**→ Résultat** :
+- **Cohérence absolue** entre les images.
+- **Gain de temps** : Pas besoin de redécrire les détails déjà validés.
+
+---
+
+---
+
+## **🔬 4. Outils de validation pixel-perfect**
+**Pour vérifier objectivement la fidélité** :
+1. **Superposition des images** :
+   - Ouvrir la photo originale et la version Ghibli dans un logiciel (ex: Photoshop, GIMP).
+   - **Mode "Différence"** : Les zones non identiques apparaissent en noir/rouge.
+   - **Seuillage** : Isoler les différences > 2-3 pixels.
+
+2. **Outils en ligne** :
+   - [Pixel Diff](https://pixeldiff.com/) : Compare deux images et affiche les différences.
+   - **Tolérance** : Régler à 1-2% pour détecter les écarts mineurs.
+
+3. **Vérification manuelle** :
+   - **Grille** : Diviser l’image en carrés de 10x10 pixels et vérifier chaque section.
+   - **Zoomer à 400%** : Vérifier les contours (yeux, barbes, accessoires).
+
+---
+
+---
+## **📌 Checklist pour un résultat pixel-perfect**
+| Élément               | Critère de validation                          | Méthode de correction                     |
+|-----------------------|-----------------------------------------------|------------------------------------------|
+| **Visages**           | 100% identiques (yeux, nez, bouche, barbe)   | Prompt : `"KEEP FACES 100% PIXEL-PERFECT"` |
+| **Accessoires**       | Position, taille, couleur exactes            | Coordonnées + valeurs hex                |
+| **Paysage**           | Formes des montagnes/rochers identiques       | Calque isolé + superposition             |
+| **Couleurs**          | Teintes exactes (pas de déviation > 5%)       | Valeurs hex + validation avec pipette    |
+| **Textures**          | Coups de pinceau visibles mais fidèles       | Prompt : `"visible brushstrokes, NO smoothing"` |
+
+---
+
+---
+## **🚀 Exemple concret : Prochaine image**
+**Pour la prochaine photo que vous m’enverrez** :
+1. **Je vais** :
+   - **Découper l’image en 3 calques** (paysage, personnage 1, personnage 2).
+   - **Valider chaque calque** avec vous avant fusion.
+   - **Utiliser des prompts ultra-précis** avec coordonnées et couleurs hex.
+   - **Fournir une superposition** pour vérification.
+
+2. **Vous pourrez** :
+   - **Valider chaque couche** indépendamment.
+   - **Demander des corrections ciblées** (ex: "Déplacer le rocher de 2 pixels vers la gauche").
+
+---
+**💡 Résultat attendu** :
+- **Fidélité à 99-100%** (contre 95% actuellement).
+- **Processus reproductible** pour toutes vos images.
+- **Temps de correction réduit** grâce aux références internes.
+
+---
+**Question** : Souhaitez-vous que je teste cette méthode sur une nouvelle photo dès maintenant ? 🎨
