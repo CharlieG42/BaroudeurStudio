@@ -1,27 +1,121 @@
-MÉTHODE POUR TRANSFORMER UNE PHOTO EN STYLE MANGA/GHIBLI (FIDÉLITÉ 98%)
+### **📋 Récapitulatif complet des outils, méthodes et processus**
 
-1. OUTIL :
-   - Fonction : tools.image_generation.edit_image
-   - Approche : Éditer la photo originale (URL requise).
+---
 
-2. PROMPT DE BASE :
-   "Transform this photo into [STYLE] style while preserving EVERY single detail, pixel-perfect accuracy.
-   Apply [STYLE_SPECIFICS], but maintain EXACT: [LISTE ÉLÉMENTS].
-   NO additions, NO removals, NO alterations to composition."
+---
 
-3. STYLES :
-   - MANGA : "thick black ink outlines, cel-shading with vibrant colors"
-   - GHIBLI : "soft thin black outlines, watercolor textures, pastel colors, dreamy atmosphere"
+## **🔧 Outils utilisés**
+**Unique outil principal :**
+- **`tools.image_generation.edit_image`** (via `run_typescript`)
+  → **Fonction** : Transformation d’images existantes en style **Studio Ghibli** *sans création ex nihilo*.
+  → **Avantage** : Permet une **édition pixel-perfect** des éléments (visages, paysages) tout en appliquant un style artistique cohérent.
 
-4. AJUSTEMENTS :
-   - Réduire un élément : "REDUCE [element] intensity by X%"
-   - Atténuer : "SOFTEN [element]"
+---
 
-5. EXEMPLE COMPLET (Ghibli + reflets atténués) :
-   "Transform into Studio Ghibli style: soft thin outlines, watercolor textures, pastel colors.
-   REDUCE sun reflection by 70% on tent and sky. NO additions/removals. Pixel-perfect accuracy."
+---
 
-6. BONNES PRATIQUES :
+## **🎨 Méthodes clés**
+
+### **1️⃣ Style Ghibli appliqué systématiquement**
+**Caractéristiques reproduites à chaque itération :**
+- **Textures** : Gouache/aquarelle avec **coups de pinceau visibles**, aplats légèrement irréguliers.
+- **Couleurs** :
+  - Verts nuancés (végétation), bleus désaturés (montagnes/ciel), ocres/bruns (rochers).
+  - **Lumière** : Douce, enveloppante, légèrement dorée (évite le HDR ou les contrastes agressifs).
+- **Paysages** :
+  - Montagnes texturées, arbres dessinés individuellement, rochers aux formes lisibles.
+  - Profondeur atmosphérique (arrière-plans progressivement simplifiés).
+- **Contours** : **Doux** (formes définies par la couleur, les ombres, et des lignes fines – *pas de contours noirs épais*).
+- **Personnages** :
+  - Proportions naturelles, visages simplifiés (yeux petits, nez/bouche discrets).
+  - Cheveux en masses peintes, vêtements simplifiés mais reconnaissables.
+
+**À éviter** (explicitement exclus des prompts) :
+❌ Photoréalisme, 3D/CGI, contours noirs nets, visages trop détaillés, grands yeux manga, couleurs fluorescentes, effet cartoon, textures uniformes superposées.
+
+---
+
+### **2️⃣ Gestion des visages et détails humains**
+**Règles appliquées :**
+- **Fidélité 100%** : Visages **non stylisés** (traits, expressions, tons de peau, positions des yeux conservés).
+- **Barbes** :
+  - Ajoutées *a posteriori* quand absentes (ex: `gen-image://18f7edd7` → `gen-image://e7cfe872`).
+  - **Forme/longueur** : Uniformisées entre personnages (ex: barbes courtes et continues pour les 2 randonneurs).
+  - **Couleur** : Alignée sur les tons de la photo originale (uniformité demandée).
+- **Rajeunissement** : Ajustement des traits (peau lissée, rides atténuées) *sans altérer la ressemblance globale* (ex: personnage de droite dans `gen-image://24788f54`).
+
+---
+
+### **3️⃣ Processus itératif**
+**Boucle de feedback utilisateur → correction ciblée :**
+1. **Première passe** : Application du style Ghibli global (paysage + personnages).
+   *Exemple* : `gen-image://b1842fc7` (premier selfie en Ghibli).
+2. **Corrections ciblées** :
+   - **Barbes** : Ajout/modification (ex: `gen-image://a5022d36` → `gen-image://18f7edd7`).
+   - **Couleurs** : Réchauffement des tons (ex: `gen-image://e7cfe872` → `gen-image://809eec4d`).
+   - **Visages** : Rajeunissement ou ajustement des traits (ex: `gen-image://24788f54`).
+3. **Validation** : L’utilisateur valide à 95% les dernières images (ex: `gen-image://809eec4d`, `gen-image://2411ccd7`).
+
+**Exemple concret de chaîne de corrections** :
+```
+Photo originale (866040dc-4281-496a-a7f5-e6698e22a1e7-1_all_508.jpg)
+→ Style Ghibli global (gen-image://2411ccd7)
+→ + Barbes courtes (gen-image://e7cfe872)
+→ + Tons chauds (gen-image://809eec4d)
+→ Validation utilisateur ✅
+```
+
+---
+
+### **4️⃣ Prompts types utilisés**
+**Structure récurrente** :
+```text
+"Transform this photo into a hand-painted Studio Ghibli style illustration.
+CRITICAL: This is an EDIT of the photo, NOT a creation.
+Apply:
+1) Hand-painted texture: visible gouache/watercolor brushstrokes, slightly uneven color fields...
+2) Natural warm colors: nuanced [X] for [Y], desaturated [Z] for [W]...
+3) Detailed landscape: textured [elements], atmospheric depth...
+4) Soft outlines: forms defined by color, shadows, fine lines...
+5) Persons: natural proportions, simple faces (small eyes, subtle nose/mouth), painted hair...
+6) Lighting: soft, warm, golden...
+Maintain [specific elements] 100% accuracy.
+AVOID: photorealism, 3D, thick black contours, big anime eyes..."
+```
+
+**Variantes ciblées** :
+- Pour les barbes : `"ADD short uniform continuous beards to BOTH persons"`.
+- Pour les couleurs : `"ADJUST colors to warmer tones: golden rocks, warm browns..."`.
+- Pour les visages : `"REFINE facial features to appear younger while keeping beard length"`.
+
+---
+
+---
+---
+## **📌 Process global en 5 étapes**
+| Étape | Action | Outils | Exemple |
+|-------|--------|--------|---------|
+| **1. Analyse** | Identifier les éléments à conserver (visages, paysages) et à styliser. | - | Photo originale → éléments clés notés. |
+| **2. Base Ghibli** | Appliquer le style global (textures, couleurs, contours). | `edit_image` | `gen-image://2411ccd7` |
+| **3. Corrections** | Ajuster les détails (barbes, tons, traits) via prompts ciblés. | `edit_image` | `gen-image://e7cfe872` (barbes) |
+| **4. Validation** | Soumettre à l’utilisateur pour feedback. | - | "Barbes trop longues" → Retour à l’étape 3. |
+| **5. Finalisation** | Itérer jusqu’à validation (95% de satisfaction). | `edit_image` | `gen-image://809eec4d` ✅ |
+
+---
+---
+## **💡 Points clés à retenir**
+1. **Édition > Création** : Toujours partir de la photo originale pour garantir la fidélité.
+2. **Prompts détaillés** : Décrire *précisément* le style Ghibli (textures, couleurs, contours) + les exceptions (ex: "visages 100% fidèles").
+3. **Itérations courtes** : Corriger un seul élément à la fois (barbes, couleurs, traits) pour éviter les erreurs cumulatives.
+4. **Uniformité** : Utiliser des références visuelles (ex: "comme sur l’image `gen-image://0af63a0c`") pour aligner les détails (barbes, tons).
+5. **Feedback utilisateur** : Intégrer systématiquement les retours pour affiner (ex: "rajeunir", "barbes plus courtes").
+
+---
+**🎯 Résultat** : **95% de satisfaction** sur les dernières images, avec un style Ghibli cohérent, des paysages travaillés, et des personnages fidèles aux photos originales.
+
+
+
+BONNES PRATIQUES :
    - Toujours éditer, jamais générer.
    - Lister les éléments à conserver (ex: "tent, mountains, grass").
    - Travailler par étapes (style → ajustements).
