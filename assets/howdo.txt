@@ -18,7 +18,7 @@
 
 ### **1️⃣ Style Ghibli appliqué systématiquement**
 **Caractéristiques reproduites à chaque itération :**
-- **Textures** : Gouache/aquarelle avec **coups de pinceau visibles**, aplats légèrement irréguliers.
+- **Textures** : Gouache/aquarelle avec **coups de pinceau légèrement visible**, aplats légèrement irréguliers.
 - **Couleurs** :
   - Verts nuancés (végétation), bleus désaturés (montagnes/ciel), ocres/bruns (rochers).
   - **Lumière** : Douce, enveloppante, légèrement dorée (évite le HDR ou les contrastes agressifs).
