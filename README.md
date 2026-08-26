@@ -1,4 +1,4 @@
-# Les Baroudeurs — MVP v0.5
+# Les Baroudeurs — MVP v0.5.0
 
 Treks + journal quotidien + photos (appareil) + import de trace GPX (calcul automatique
 distance/dénivelé, modifiable) + notes vocales avec transcription
