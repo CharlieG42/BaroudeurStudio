@@ -226,7 +226,7 @@ class ContentXmlBuilder {
   static void _addEndPage(StringBuffer xml, Trek trek, int pageIndex) {
     final title = _escapeXml(trek.titre);
     final year = DateTime.now().year;
-    final thankYouMessage = _escapeXml("Merci d\'avoir vecu cette aventure !");
+    final thankYouMessage = _escapeXml("Merci d'avoir vecu cette aventure !");
     
     // draw:master-page-name="Default" garantit l'utilisation de la mise en page portrait
     xml.writeln('      <draw:page draw:name="page_$pageIndex" draw:style-name="DP1" draw:master-page-name="Default">');

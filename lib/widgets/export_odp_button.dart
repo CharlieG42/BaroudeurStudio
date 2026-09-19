@@ -50,7 +50,7 @@ class ExportOdpButton extends StatelessWidget {
       scaffoldMessenger.hideCurrentSnackBar();
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('Erreur lors de la génération: ' + e.toString()),
+          content: Text('Erreur lors de la génération: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -69,7 +69,7 @@ class ExportOdpButton extends StatelessWidget {
     
     // Nettoyer le nom de fichier pour Windows (au cas où)
     final baseName = fileName.substring(0, fileName.length - extension.length - 1);
-    final sanitizedFileName = FilenameUtils.sanitizeFilename(baseName) + '.' + extension;
+    final sanitizedFileName = '${FilenameUtils.sanitizeFilename(baseName)}.$extension';
 
     if (isWindows) {
       // Sur Windows: utilise FilePicker pour "Enregistrer sous"
@@ -108,7 +108,7 @@ class ExportOdpButton extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('ODP généré !'),
-        content: Text('Fichier: ' + fileName + '\n\nLe document est en orientation portrait (21cm x 28cm).'),
+        content: Text('Fichier: $fileName\n\nLe document est en orientation portrait (21cm x 28cm).'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
