@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
 import '../models/trek.dart';
+import '../trip_planner/screens/voyage_list_screen.dart';
 import 'trek_form_screen.dart';
 import 'trek_detail_screen.dart';
 
@@ -69,6 +70,16 @@ class _TrekListScreenState extends State<TrekListScreen> {
       appBar: AppBar(
         title: const Text('BaroudeurStudio'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Planifier un voyage',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VoyageListScreen()),
+              );
+            },
+          ),
           const AboutButton(),
         ],
       ),

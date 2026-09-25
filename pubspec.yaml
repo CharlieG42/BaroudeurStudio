@@ -46,6 +46,13 @@ dependencies:
   # ZIP pour ODP
   archive: ^3.3.2
 
+  # Module de planification de voyage : carte OpenStreetMap, appels
+  # HTTP vers OSRM (routage) et Nominatim (recherche de lieux)
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
+  http: ^1.2.2
+  open_file: ^3.5.10
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
