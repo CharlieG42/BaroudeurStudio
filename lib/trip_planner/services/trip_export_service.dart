@@ -10,6 +10,7 @@ import '../models/document_etape.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import '../models/voyage.dart';
+import '../models/waypoint.dart';
 import 'document_storage_service.dart';
 
 /// Import/export d'un voyage planifie au format .bwzt : une archive ZIP
@@ -31,7 +32,7 @@ import 'document_storage_service.dart';
 class TripExportService {
   static const String formatIdentifiant =
       'baroudeurstudio.tripplanner.export';
-  static const int formatVersion = 1;
+  static const int formatVersion = 2;
 
   final DocumentStorageService _documentStorage = DocumentStorageService();
 
@@ -46,6 +47,7 @@ class TripExportService {
     final db = TripPlannerDatabase.instance;
     final etapes = await db.getEtapesForVoyage(voyage.id!);
     final trajets = await db.getTrajetsForVoyage(voyage.id!);
+    final waypoints = await db.getWaypointsForVoyage(voyage.id!);
 
     // Index local par id d'etape, pour construire des references
     // portables (independantes des id de la base de donnees).
@@ -123,6 +125,19 @@ class TripExportService {
       });
     }
 
+    final waypointsJson = <Map<String, dynamic>>[];
+    for (final waypoint in waypoints) {
+      waypointsJson.add({
+        'nom': waypoint.nom,
+        'latitude': waypoint.latitude,
+        'longitude': waypoint.longitude,
+        'source': waypoint.source.name,
+        'categorie': waypoint.categorie,
+        'notes': waypoint.notes,
+        'osmId': waypoint.osmId,
+      });
+    }
+
     final contenu = {
       'format': formatIdentifiant,
       'version': formatVersion,
@@ -135,6 +150,7 @@ class TripExportService {
       },
       'etapes': etapesJson,
       'trajets': trajetsJson,
+      'waypoints': waypointsJson,
     };
 
     final jsonBytes = utf8.encode(
@@ -280,7 +296,22 @@ class TripExportService {
         notes: trajetData['notes'] as String? ?? '',
       ));
     }
-
+    final waypointsData =
+        (contenu['waypoints'] as List<dynamic>? ?? [])
+            .cast<Map<String, dynamic>>();
+    for (final waypointData in waypointsData) {
+      await db.insertWaypoint(Waypoint(
+        voyageId: voyageId,
+        nom: waypointData['nom'] as String? ?? 'Waypoint',
+        latitude: (waypointData['latitude'] as num).toDouble(),
+        longitude: (waypointData['longitude'] as num).toDouble(),
+        source: sourceWaypointFromString(
+            waypointData['source'] as String? ?? 'recommande'),
+        categorie: waypointData['categorie'] as String? ?? '',
+        notes: waypointData['notes'] as String? ?? '',
+        osmId: waypointData['osmId'] as String?,
+      ));
+    }
     return voyageId;
   }
 

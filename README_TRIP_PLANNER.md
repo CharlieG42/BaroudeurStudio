@@ -43,10 +43,26 @@ lib/trip_planner/
   widgets/      DocumentsEtapeSection (liste/ajout/ouverture des documents)
   screens/      VoyageListScreen, VoyageFormScreen, VoyageMapScreen,
                 EtapeFormScreen, TransfertFormScreen
+
+Le module waypoints ajoute (même dossier) :
+  models/       Waypoint (recommande ou personnel)
+  services/     WaypointSuggestionService (POI OpenStreetMap via
+                Overpass, autour du trace du voyage)
 ```
 
 ## Fonctionnalités
 
+- **Waypoints recommandés** : bouton étoile dans l'AppBar pour demander
+  des suggestions de points d'intérêt autour du tracé du voyage
+  (points de vue, cascades, sommets, monuments, attractions...),
+  issues des données OpenStreetMap via l'API Overpass. Les
+  suggestions sont mises en cache en base et remplacées à chaque
+  nouvelle demande ; elles n'affectent ni les trajets ni les dates.
+- **Waypoints personnels** : bouton épingle dans l'AppBar pour activer
+  le mode « ajout de waypoint » — un simple tap sur la carte pose une
+  épingle libre. Chaque waypoint (recommandé ou personnel) affiche une
+  fiche au tap avec, notamment, « Convertir en étape » : la conversion
+  réutilise la fiche d'étape standard et le recalcul des trajets.
 - **Étapes** : point de chute géolocalisé (visite ou simple passage),
   avec date/heure d'arrivée et, pour une visite, date/heure de départ
   optionnelle (utile pour un séjour de plusieurs jours au même endroit).

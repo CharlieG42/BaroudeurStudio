@@ -8,6 +8,7 @@ import '../models/voyage.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import '../models/document_etape.dart';
+import '../models/waypoint.dart';
 
 /// Couche d'acces a la base de donnees du module de planification de
 /// voyage. Volontairement independante de [DatabaseHelper] (le carnet
@@ -38,7 +39,7 @@ class TripPlannerDatabase {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -68,6 +69,9 @@ class TripPlannerDatabase {
       await _addColumnIfMissing(db, 'trajets', 'notes', 'TEXT');
       await _createDocumentsTableIfMissing(db);
     }
+    if (oldVersion < 4) {
+      await _createWaypointsTableIfMissing(db);
+    }
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas
@@ -83,6 +87,23 @@ class TripPlannerDatabase {
     if (!exists) {
       await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
     }
+  }
+
+  Future<void> _createWaypointsTableIfMissing(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS waypoints (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        voyage_id INTEGER NOT NULL,
+        nom TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        source TEXT NOT NULL DEFAULT 'recommande',
+        categorie TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        osm_id TEXT,
+        FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> _createDocumentsTableIfMissing(Database db) async {
@@ -153,6 +174,7 @@ class TripPlannerDatabase {
     ''');
 
     await _createDocumentsTableIfMissing(db);
+    await _createWaypointsTableIfMissing(db);
   }
 
   // VOYAGES
@@ -195,6 +217,7 @@ class TripPlannerDatabase {
     }
     await db.delete('trajets', where: 'voyage_id = ?', whereArgs: [id]);
     await db.delete('etapes', where: 'voyage_id = ?', whereArgs: [id]);
+    await db.delete('waypoints', where: 'voyage_id = ?', whereArgs: [id]);
     return db.delete('voyages', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -305,5 +328,50 @@ class TripPlannerDatabase {
   Future<int> deleteDocument(int id) async {
     final db = await database;
     return db.delete('documents', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // WAYPOINTS
+
+  Future<int> insertWaypoint(Waypoint waypoint) async {
+    final db = await database;
+    return db.insert('waypoints', waypoint.toMap()..remove('id'));
+  }
+
+  Future<List<Waypoint>> getWaypointsForVoyage(int voyageId) async {
+    final db = await database;
+    final maps = await db.query(
+      'waypoints',
+      where: 'voyage_id = ?',
+      whereArgs: [voyageId],
+      orderBy: 'nom ASC',
+    );
+    return maps.map((m) => Waypoint.fromMap(m)).toList();
+  }
+
+  Future<int> updateWaypoint(Waypoint waypoint) async {
+    final db = await database;
+    return db.update(
+      'waypoints',
+      waypoint.toMap(),
+      where: 'id = ?',
+      whereArgs: [waypoint.id],
+    );
+  }
+
+  Future<int> deleteWaypoint(int id) async {
+    final db = await database;
+    return db.delete('waypoints', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Supprime les waypoints recommandes d'un voyage : utilise avant de
+  /// recharger les suggestions, pour ne jamais toucher aux wayoints
+  /// personnels de l'utilisateur.
+  Future<void> deleteWaypointsRecommandesForVoyage(int voyageId) async {
+    final db = await database;
+    await db.delete(
+      'waypoints',
+      where: 'voyage_id = ? AND source = ?',
+      whereArgs: [voyageId, 'recommande'],
+    );
   }
 }
