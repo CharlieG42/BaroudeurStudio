@@ -9,8 +9,11 @@ import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import '../models/voyage.dart';
+import '../models/waypoint.dart';
 import '../services/nominatim_service.dart';
 import '../services/trip_calculation_service.dart';
+import '../services/geolocalisation_service.dart';
+import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
 import 'transfert_form_screen.dart';
 import 'voyage_form_screen.dart';
@@ -43,11 +46,29 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
 
   List<Etape> _etapes = [];
   List<Trajet> _trajets = [];
+  List<Waypoint> _waypoints = [];
   bool _loading = true;
   bool _recalcul = false;
   ModeAffichage _modeAffichage = ModeAffichage.partage;
   FondCarte _fondCarte = FondCarte.osm;
   bool _afficherSentiers = false;
+  bool _afficherWaypoints = true;
+  bool _chargementSuggestions = false;
+
+  // Mode "ajout de waypoint personnel" : actif, un simple tap sur la
+  // carte cree un waypoint personnel (epingle libre) au lieu d'ouvrir
+  // la fiche d'ajout d'etape (qui reste accessible via appui long).
+  bool _modeAjoutWaypoint = false;
+
+  final WaypointSuggestionService _suggestionService =
+      WaypointSuggestionService();
+  final GeolocalisationService _geolocalisationService =
+      GeolocalisationService();
+
+  // Position de l'utilisateur sur la carte (null si non demandee ou
+  // indisponible). Demandee uniquement sur action explicite.
+  PositionUtilisateur? _positionUtilisateur;
+  bool _recuperationPosition = false;
 
   // Recherche d'adresse/lieu directement depuis la vue carte.
   final TextEditingController _rechercheCarteController =
@@ -77,9 +98,11 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     final db = TripPlannerDatabase.instance;
     final etapes = await db.getEtapesForVoyage(widget.voyage.id!);
     final trajets = await db.getTrajetsForVoyage(widget.voyage.id!);
+    final waypoints = await db.getWaypointsForVoyage(widget.voyage.id!);
     setState(() {
       _etapes = etapes;
       _trajets = trajets;
+      _waypoints = waypoints;
       _loading = false;
     });
     _centrerCarte();
@@ -162,6 +185,158 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     await TripPlannerDatabase.instance.deleteEtape(etape.id!);
     await _renumeroterEtapes();
     await _recalculerTrajets();
+  }
+
+  // WAYPOINTS
+
+  /// Demande des suggestions de waypoints autour du trace du voyage
+  /// (API Overpass, sur requete explicite de l'utilisateur). Les
+  /// suggestions deja en base sont remplacees ; les waypoints
+  /// personnels ne sont jamais touches. Sans trace routier (trajets
+  /// non calcules ou mode manuel), on retombe sur une ligne brisee
+  /// entre etapes consecutives.
+  Future<void> _chargerSuggestionsWaypoints() async {
+    if (widget.voyage.id == null || _chargementSuggestions) return;
+    final trace = <List<double>>[];
+    for (final trajet in _trajets) {
+      final points = trajet.points.isNotEmpty
+          ? trajet.points
+          : _pointsEtapesPour(trajet)
+              .map((p) => [p.latitude, p.longitude])
+              .toList();
+      trace.addAll(points);
+    }
+    if (trace.isEmpty && _etapes.isNotEmpty) {
+      for (final etape in _etapes) {
+        trace.add([etape.latitude, etape.longitude]);
+      }
+    }
+
+    setState(() => _chargementSuggestions = true);
+    try {
+      final suggestions = await _suggestionService.suggererWaypoints(
+        trace: trace,
+        rayonMetres: 3000,
+      );
+      final db = TripPlannerDatabase.instance;
+      await db.deleteWaypointsRecommandesForVoyage(widget.voyage.id!);
+      for (final suggestion in suggestions) {
+        await db.insertWaypoint(suggestion.toWaypoint(widget.voyage.id!));
+      }
+      final waypoints = await db.getWaypointsForVoyage(widget.voyage.id!);
+      if (!mounted) return;
+      setState(() {
+        _waypoints = waypoints;
+        _afficherWaypoints = true;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            suggestions.isEmpty
+                ? 'Aucun waypoint recommande trouve pres du trace.'
+                : '${suggestions.length} waypoint(s) recommande(s) ajoute(s).',
+          ),
+        ),
+      );
+    } on SuggestionWaypointException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _chargementSuggestions = false);
+    }
+  }
+
+  /// Recupere la position de l'utilisateur et centre la carte dessus.
+  /// Sur erreur (permission refusee, service desactive...), affiche un
+  /// message explicite plutot que d'echouer silencieusement.
+  Future<void> _localiserUtilisateur() async {
+    if (_recuperationPosition) return;
+    setState(() => _recuperationPosition = true);
+    try {
+      final position = await _geolocalisationService.positionActuelle();
+      if (!mounted) return;
+      if (position == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Position indisponible pour le moment.'),
+          ),
+        );
+        return;
+      }
+      setState(() => _positionUtilisateur = position);
+      _mapController.move(
+        LatLng(position.latitude, position.longitude),
+        14,
+      );
+    } on GeolocalisationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _recuperationPosition = false);
+    }
+  }
+
+  /// Cree un waypoint personnel a l'endroit tape sur la carte.
+  Future<void> _ajouterWaypointPersonnel(double lat, double lon) async {
+    if (widget.voyage.id == null) return;
+    final waypoint = Waypoint(
+      voyageId: widget.voyage.id!,
+      nom: 'Waypoint personnel',
+      latitude: lat,
+      longitude: lon,
+      source: SourceWaypoint.personnel,
+      categorie: 'personnel',
+    );
+    await TripPlannerDatabase.instance.insertWaypoint(waypoint);
+    final waypoints =
+        await TripPlannerDatabase.instance.getWaypointsForVoyage(widget.voyage.id!);
+    if (!mounted) return;
+    setState(() {
+      _waypoints = waypoints;
+      _afficherWaypoints = true;
+      _modeAjoutWaypoint = false;
+    });
+  }
+
+  /// Convertit un waypoint en etape de type passage : reutilise la
+  /// fiche d'edition d'etape existante (dates, notes...), puis le
+  /// recalcul standard des trajets s'occupe de l'insertion dans
+  /// l'itineraire. Le waypoint est supprime seulement si l'utilisateur
+  /// valide la creation de l'etape.
+  Future<void> _convertirWaypointEnEtape(Waypoint waypoint) async {
+    if (widget.voyage.id == null) return;
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EtapeFormScreen(
+          voyageId: widget.voyage.id!,
+          ordre: _etapes.length,
+          latitudeInitiale: waypoint.latitude,
+          longitudeInitiale: waypoint.longitude,
+          nomInitial: waypoint.nom,
+        ),
+      ),
+    );
+    if (created == true) {
+      if (waypoint.id != null) {
+        await TripPlannerDatabase.instance.deleteWaypoint(waypoint.id!);
+      }
+      await _recalculerTrajets();
+    }
+  }
+
+  Future<void> _supprimerWaypoint(Waypoint waypoint) async {
+    if (waypoint.id == null) return;
+    await TripPlannerDatabase.instance.deleteWaypoint(waypoint.id!);
+    final waypoints = await TripPlannerDatabase.instance
+        .getWaypointsForVoyage(widget.voyage.id!);
+    if (!mounted) return;
+    setState(() => _waypoints = waypoints);
   }
 
   /// Reordonne les etapes suite a un glisser-deposer dans la liste, ou
@@ -297,6 +472,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
             onSelected: (valeur) {
               if (valeur == 'sentiers') {
                 setState(() => _afficherSentiers = !_afficherSentiers);
+              } else if (valeur == 'waypoints') {
+                setState(() => _afficherWaypoints = !_afficherWaypoints);
               } else {
                 setState(() => _fondCarte = FondCarte.values.byName(valeur));
               }
@@ -311,7 +488,50 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 checked: _afficherSentiers,
                 child: const Text('Sentiers de randonnee (GR/GRP/PR)'),
               ),
+              CheckedPopupMenuItem<String>(
+                value: 'waypoints',
+                checked: _afficherWaypoints,
+                child: const Text('Waypoints (recommandes et personnels)'),
+              ),
             ],
+          ),
+          IconButton(
+            icon: _chargementSuggestions
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.recommend_outlined),
+            tooltip: 'Suggerer des waypoints autour du trace',
+            onPressed:
+                _chargementSuggestions ? null : _chargerSuggestionsWaypoints,
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.push_pin,
+              color: _modeAjoutWaypoint ? Colors.amber : null,
+            ),
+            tooltip: _modeAjoutWaypoint
+                ? 'Mode waypoint actif : tape la carte'
+                : 'Ajouter un waypoint personnel',
+            onPressed: () {
+              setState(() => _modeAjoutWaypoint = !_modeAjoutWaypoint);
+              if (_modeAjoutWaypoint) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Mode waypoint : tape la carte pour poser une epingle. '
+                      'Reappuie sur l\'icone pour desactiver.',
+                    ),
+                    duration: Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
           ),
           PopupMenuButton<ModeAffichage>(
             tooltip: 'Disposition de l\'ecran',
@@ -519,6 +739,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
             options: MapOptions(
               initialCenter: centre,
               initialZoom: _etapes.isEmpty ? 5 : 6,
+              onTap: _modeAjoutWaypoint
+                  ? (tapPosition, point) =>
+                      _ajouterWaypointPersonnel(point.latitude, point.longitude)
+                  : null,
               onLongPress: (tapPosition, point) =>
                   _ajouterEtape(lat: point.latitude, lon: point.longitude),
             ),
@@ -527,6 +751,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 urlTemplate: _urlTuilesPour(_fondCarte),
                 userAgentPackageName: 'com.baroudeurs.studio',
                 maxZoom: 19,
+                tileProvider: NetworkTileProvider(
+                  cachingProvider:
+                      BuiltInMapCachingProvider.getOrCreateInstance(),
+                ),
               ),
               if (_afficherSentiers)
                 TileLayer(
@@ -547,6 +775,60 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                       color: _couleurMode(t.mode),
                     );
                   }).toList(),
+                ),
+              if (_afficherWaypoints)
+                MarkerLayer(
+                  markers: _waypoints
+                      .map((waypoint) => Marker(
+                            point: LatLng(waypoint.latitude, waypoint.longitude),
+                            width: 32,
+                            height: 32,
+                            child: GestureDetector(
+                              onTap: () => _afficherDetailWaypoint(waypoint),
+                              child: Icon(
+                                waypoint.estPersonnel
+                                    ? Icons.push_pin
+                                    : Icons.star,
+                                size: 28,
+                                color: waypoint.estPersonnel
+                                    ? Colors.red.shade700
+                                    : Colors.amber.shade800,
+                                shadows: const [
+                                  Shadow(color: Colors.black54, blurRadius: 2),
+                                ],
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              if (_positionUtilisateur != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(
+                        _positionUtilisateur!.latitude,
+                        _positionUtilisateur!.longitude,
+                      ),
+                      width: 24,
+                      height: 24,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               MarkerLayer(
                 markers: _etapes.asMap().entries.map((entry) {
@@ -586,6 +868,23 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           child: SafeArea(
             bottom: false,
             child: _buildRechercheCarte(),
+          ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 12,
+          child: FloatingActionButton(
+            heroTag: 'btnLocalisation',
+            onPressed:
+                _recuperationPosition ? null : _localiserUtilisateur,
+            tooltip: 'Ma position',
+            child: _recuperationPosition
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.my_location),
           ),
         ),
       ],
@@ -756,6 +1055,114 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           ),
       ],
     );
+  }
+
+  void _afficherDetailWaypoint(Waypoint waypoint) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    waypoint.estPersonnel
+                        ? Icons.push_pin
+                        : Icons.star,
+                    size: 20,
+                    color: waypoint.estPersonnel
+                        ? Colors.red.shade700
+                        : Colors.amber.shade800,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      waypoint.nom,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                waypoint.estPersonnel
+                    ? 'Waypoint personnel'
+                    : 'Recommande${waypoint.categorie.isNotEmpty ? ' · ${_libelleCategorieWaypoint(waypoint.categorie)}' : ''}',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${waypoint.latitude.toStringAsFixed(5)}, '
+                '${waypoint.longitude.toStringAsFixed(5)}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _convertirWaypointEnEtape(waypoint);
+                    },
+                    icon: const Icon(Icons.add_location_alt_outlined),
+                    label: const Text('Convertir en etape'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _supprimerWaypoint(waypoint);
+                    },
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    label: const Text(
+                      'Supprimer',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _libelleCategorieWaypoint(String categorie) {
+    switch (categorie) {
+      case 'tourism=attraction':
+        return 'attraction';
+      case 'tourism=viewpoint':
+        return 'point de vue';
+      case 'tourism=artwork':
+        return 'oeuvre d\'art';
+      case 'natural=peak':
+        return 'sommet';
+      case 'natural=waterfall':
+        return 'cascade';
+      case 'natural=beach':
+        return 'plage';
+      case 'historic=monument':
+        return 'monument';
+      case 'historic=castle':
+        return 'chateau';
+      case 'historic=ruins':
+        return 'ruines';
+      case 'personnel':
+        return 'personnel';
+      default:
+        return categorie;
+    }
   }
 
   void _afficherDetailEtape(Etape etape) {
