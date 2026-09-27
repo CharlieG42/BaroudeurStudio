@@ -57,6 +57,13 @@ Le module waypoints ajoute (même dossier) :
   utilisation), l'affiche sous forme d'un point bleu et recentre la
   carte dessus. Position ponctuelle à la demande — pas de suivi
   continu, pour préserver batterie et vie privée.
+- **Cartes hors ligne (cache de tuiles)** : les tuiles de carte
+  consultées en ligne (OSM, IGN, sentiers) sont stockées dans un cache
+  disque persistant de 1 Go et rejouées telles quelles sans réseau.
+  Pratique pour préparer une zone avant un départ en randonnée : zoom
+  sur la zone à couvrir avant de partir, elle restera consultable
+  hors ligne. La fraîcheur des tuiles est gérée via les en-têtes HTTP
+  du serveur de tuiles.
 - **Waypoints recommandés** : bouton étoile dans l'AppBar pour demander
   des suggestions de points d'intérêt autour du tracé du voyage
   (points de vue, cascades, sommets, monuments, attractions...),
