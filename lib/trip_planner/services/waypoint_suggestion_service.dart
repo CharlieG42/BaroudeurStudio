@@ -102,7 +102,7 @@ class WaypointSuggestionService {
     // n'est pas exploitable comme suggestion affichable.
     final clauses = _categoriesParCle.entries
         .map((e) =>
-            'node["name"]["${e.key}"~"^(${e.value})$"]$bbox;')
+            'node["name"]["${e.key}"~"^(${e.value})\$"]$bbox;')
         .join('');
     final requete = '[out:json][timeout:25];'
         '($clauses);'
