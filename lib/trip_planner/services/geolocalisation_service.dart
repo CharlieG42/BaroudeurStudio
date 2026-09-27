@@ -85,9 +85,9 @@ class GeolocalisationService {
         longitude: position.longitude,
         precisionMetres: position.accuracy,
       );
-    } on LocationException {
-      return null;
     } catch (_) {
+      // Timeout (TimeoutException), position indisponible ou erreur
+      // plateform : sans position, on ne bloque pas l'utilisateur.
       return null;
     }
   }
