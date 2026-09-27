@@ -18,7 +18,7 @@ class PositionUtilisateur {
 /// l'utilisateur final.
 class GeolocalisationException implements Exception {
   final String message;
-  GeolocalisationException(this.message);
+  const GeolocalisationException(this.message);
   @override
   String toString() => message;
 }
@@ -77,17 +77,15 @@ class GeolocalisationService {
 
     try {
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 15),
-        ),
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 15),
       );
       return PositionUtilisateur(
         latitude: position.latitude,
         longitude: position.longitude,
         precisionMetres: position.accuracy,
       );
-    } on GeolocatorException {
+    } on LocationException {
       return null;
     } catch (_) {
       return null;
