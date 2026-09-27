@@ -751,6 +751,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 urlTemplate: _urlTuilesPour(_fondCarte),
                 userAgentPackageName: 'com.baroudeurs.studio',
                 maxZoom: 19,
+                tileProvider: NetworkTileProvider(
+                  cachingProvider:
+                      BuiltInMapCachingProvider.getOrCreateInstance(),
+                ),
               ),
               if (_afficherSentiers)
                 TileLayer(
