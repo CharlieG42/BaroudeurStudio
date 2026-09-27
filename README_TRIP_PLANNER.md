@@ -52,6 +52,11 @@ Le module waypoints ajoute (même dossier) :
 
 ## Fonctionnalités
 
+- **Ma position** : bouton flottant cible sur la carte qui récupère la
+  position GPS de l'appareil (demande de permission à la première
+  utilisation), l'affiche sous forme d'un point bleu et recentre la
+  carte dessus. Position ponctuelle à la demande — pas de suivi
+  continu, pour préserver batterie et vie privée.
 - **Waypoints recommandés** : bouton étoile dans l'AppBar pour demander
   des suggestions de points d'intérêt autour du tracé du voyage
   (points de vue, cascades, sommets, monuments, attractions...),
