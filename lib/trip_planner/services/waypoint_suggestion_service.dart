@@ -48,11 +48,20 @@ class SuggestionWaypointException implements Exception {
 /// trouver les points d'interet situes a proximite du trace d'un
 /// voyage : points de vue, cascades, sommets, monuments, attractions...
 ///
+/// Strategie de requete : le trace est echantillonne en ~50 centres
+/// espaces regulierement (par distance, pas par index), puis une
+/// seule requete Overpass utilise le filtre `around` avec tous ces
+/// centres. On obtient ainsi un corridor continu autour de
+/// l'itineraire, sans etre limite aux POI d'une enorme bbox englobante
+/// (qui, pour un grand voyage, renvoie des POI partout sauf pres de
+/// la route). Les ways/relations sont incluses (nwr) : beaucoup de
+/// chateaux, cascades ou attractions sont traces comme des polygones
+/// dans OSM ; "out center" fournit alors leur centre.
+///
 /// Les requetes sont limitees volontairement : elles ne sont lancees
-/// que sur action explicite de l'utilisateur (jamais en continu), le
-/// trace est echantillonne avant interrogation et les resultats sont
-/// mis en cache en base (table waypoints) pour ne pas re-interroger
-/// l'API a chaque ouverture de la carte.
+/// que sur action explicite de l'utilisateur (jamais en continu), et
+/// les resultats sont mis en cache en base (table waypoints) pour ne
+/// pas re-interroger l'API a chaque ouverture de la carte.
 ///
 /// Politique d'usage de overpass-api.de : usage raisonnable, pas
 /// d'usage intensif automatise. Pour un usage intensif, heberger sa
@@ -68,9 +77,13 @@ class WaypointSuggestionService {
   /// borner le temps de reponse et le volume de donnees.
   static const int maxSuggestions = 60;
 
-  /// Regroupement des categories OSM interessees par cle OSM : chaque
-  /// entree devient une clause regex (union des valeurs) dans la
-  /// requete Overpass.
+  /// Nombre de centres vises pour le filtre `around` autour du trace.
+  static const int _cibleCentres = 50;
+
+  /// Categories OSM interessees, regroupees par cle : la cle et la
+  /// valeur sont envoyees a Overpass sous forme de regex (une seule
+  /// clause), et servent aussi a retrouver la categorie d'un POI
+  /// retourne pour l'affichage.
   static const Map<String, String> _categoriesParCle = {
     'tourism': 'attraction|viewpoint|artwork',
     'natural': 'peak|waterfall|beach',
@@ -79,33 +92,34 @@ class WaypointSuggestionService {
 
   /// Retourne les POI dignes d'interet situes a moins de [rayonMetres]
   /// du trace passe en argument (liste de points [lat, lon], ordre du
-  /// parcours). Le trace est echantillonne puis envoye a Overpass
-  /// dans une seule requete englobante ; les POI retournes sont
-  /// ensuite filtres localement sur leur distance reelle au trace.
+  /// parcours). Le trace est echantillonne en centres espaces par
+  /// distance, envoyes a Overpass dans une seule requete `around` ;
+  /// les POI retournes sont re-filtres localement (filet de securite).
   Future<List<PoiSuggere>> suggererWaypoints({
     required List<List<double>> trace,
     required int rayonMetres,
   }) async {
-    final echantillons = _echantillonnerTrace(trace);
-    if (echantillons.isEmpty) {
+    final centres = _echantillonnerTrace(trace, rayonMetres);
+    if (centres.isEmpty) {
       throw SuggestionWaypointException(
         'Aucun trace disponible : calcule les trajets avant de demander '
         'des suggestions.',
       );
     }
 
-    final bounds = _boundsTrace(echantillons);
-    final bbox =
-        '(${bounds.sud},${bounds.ouest},${bounds.nord},${bounds.est})';
-    // Union des clauses par cle OSM (le ";" entre clauses = OU en
-    // Overpass QL). On ne garde que les POI nommes : un POI sans nom
-    // n'est pas exploitable comme suggestion affichable.
-    final clauses = _categoriesParCle.entries
-        .map((e) =>
-            'node["name"]["${e.key}"~"^(${e.value})\$"]$bbox;')
-        .join('');
-    final requete = '[out:json][timeout:25];'
-        '($clauses);'
+    // Clause unique : la cle (tourism|natural|historic) et la valeur
+    // (attraction|viewpoint|...) sont filtrees par regex, et le filtre
+    // "around" cible chaque centre du trace. On ne garde que les POI
+    // nommes : un POI sans nom n'est pas exploitable comme
+    // suggestion affichable.
+    final valeurs = _categoriesParCle.values.join('|');
+    final centresListe = centres
+        .map((p) => '${p[0].toStringAsFixed(5)},${p[1].toStringAsFixed(5)}')
+        .join(',');
+    final requete = '[out:json][timeout:60];'
+        'nwr["name"]'
+        '[~"^(tourism|natural|historic)\$"~"^($valeurs)\$"]'
+        '(around:$rayonMetres,$centresListe);'
         'out center $maxSuggestions;';
 
     final uri = Uri.parse(baseUrl);
@@ -121,11 +135,17 @@ class WaypointSuggestionService {
             },
             body: {'data': requete},
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 60));
     } catch (_) {
       throw SuggestionWaypointException(
         'Impossible de contacter le service de suggestions '
         '(verifie ta connexion).',
+      );
+    }
+    if (response.statusCode == 429) {
+      throw SuggestionWaypointException(
+        'Service de suggestions momentanement sature (limite d\'usage). '
+        'Reessaie dans une minute.',
       );
     }
     if (response.statusCode != 200) {
@@ -143,93 +163,116 @@ class WaypointSuggestionService {
         'Reponse du service de suggestions illisible.',
       );
     }
+    // Overpass peut repondre 200 avec une erreur dans "remark" (ex:
+    // timeout du serveur) : on la remonte plutot que de croire a une
+    // absence de resultats.
+    if (data['elements'] == null && data['remark'] != null) {
+      throw SuggestionWaypointException(
+        'Service de suggestions : ${data['remark']}',
+      );
+    }
     final elements = (data['elements'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
     final resultats = <PoiSuggere>[];
     final osmIdsDejaVus = <String>{};
     for (final element in elements) {
+      final type = element['type'] as String? ?? 'node';
       final id = element['id']?.toString();
-      if (id == null || osmIdsDejaVus.contains(id)) continue;
-      final lat = (element['lat'] as num?)?.toDouble();
-      final lon = (element['lon'] as num?)?.toDouble();
+      if (id == null) continue;
+      final osmId = '$type/$id';
+      if (osmIdsDejaVus.contains(osmId)) continue;
+
+      // Noeuds : lat/lon directs ; ways/relations : centre fourni par
+      // "out center".
+      final latDirect = element['lat'] as num?;
+      final lonDirect = element['lon'] as num?;
+      final centre = element['center'] as Map<String, dynamic>?;
+      final lat = latDirect?.toDouble() ?? (centre?['lat'] as num?)?.toDouble();
+      final lon = lonDirect?.toDouble() ?? (centre?['lon'] as num?)?.toDouble();
       if (lat == null || lon == null) continue;
-      if (!_estProcheDuTrace(lat, lon, echantillons, rayonMetres)) continue;
+      if (!_estProcheDuTrace(lat, lon, centres, rayonMetres)) continue;
 
       final tags =
           (element['tags'] as Map<String, dynamic>? ?? <String, dynamic>{});
-      final nom = _nomAffichable(tags, id);
+      final nom = _nomAffichable(tags, osmId);
       final categorie = _categoriePrincipale(tags);
 
-      osmIdsDejaVus.add(id);
+      osmIdsDejaVus.add(osmId);
       resultats.add(PoiSuggere(
         nom: nom,
         latitude: lat,
         longitude: lon,
         categorie: categorie,
-        osmId: id,
+        osmId: osmId,
       ));
     }
     return resultats;
   }
 
-  /// Reduit le trace a un nombre borne de points representatifs,
-  /// preserves dans l'ordre du parcours. Pour un trace court, tous
-  /// les points sont conserves ; sinon on garde un point tous les
-  /// ~[pasApproximatif] points.
-  List<List<double>> _echantillonnerTrace(List<List<double>> trace) {
+  /// Reduit le trace a un nombre borne de centres espaces par
+  /// DISTANCE (et non par index) : on vise ~[_cibleCentres] centres,
+  /// espaces d'au moins 2 km et d'au plus 15 km, de sorte que les
+  /// rayons "around" couvrent un corridor continu autour du trace.
+  /// Un trace court se contente de ses extremites.
+  List<List<double>> _echantillonnerTrace(
+    List<List<double>> trace,
+    int rayonMetres,
+  ) {
     final points =
         trace.where((p) => p.length >= 2).map((p) => [p[0], p[1]]).toList();
     if (points.isEmpty) return [];
-    const cible = 150;
-    if (points.length <= cible) return points;
-    final pas = (points.length / cible).ceil();
-    final echantillons = <List<double>>[
-      points.first,
-    ];
-    for (var i = pas; i < points.length; i += pas) {
-      echantillons.add(points[i]);
+    if (points.length == 1) return [points.first];
+
+    var longueurMetres = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      longueurMetres += _distanceApprocheeMetres(
+        points[i - 1][0],
+        points[i - 1][1],
+        points[i][0],
+        points[i][1],
+      );
     }
-    if (echantillons.last != points.last) {
-      echantillons.add(points.last);
+    if (longueurMetres < rayonMetres * 2) {
+      // Trace court : depart et arrivee suffisent a couvrir le corridor.
+      return [points.first, points.last];
     }
-    return echantillons;
+
+    final espacement =
+        (longueurMetres / _cibleCentres).clamp(2000.0, 15000.0).toDouble();
+    final centres = <List<double>>[points.first];
+    var distanceDepuisCentre = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      distanceDepuisCentre += _distanceApprocheeMetres(
+        points[i - 1][0],
+        points[i - 1][1],
+        points[i][0],
+        points[i][1],
+      );
+      if (distanceDepuisCentre >= espacement) {
+        centres.add(points[i]);
+        distanceDepuisCentre = 0.0;
+      }
+    }
+    if (centres.last != points.last) {
+      centres.add(points.last);
+    }
+    return centres;
   }
 
-  _Bounds _boundsTrace(List<List<double>> points) {
-    var nord = -90.0;
-    var sud = 90.0;
-    var est = -180.0;
-    var ouest = 180.0;
-    for (final p in points) {
-      if (p[0] > nord) nord = p[0];
-      if (p[0] < sud) sud = p[0];
-      if (p[1] > est) est = p[1];
-      if (p[1] < ouest) ouest = p[1];
-    }
-    // Marge d'un demi-degre (~55 km) autour du trace, pour couvrir les
-    // POI situes un peu au large de la route sans interroger une zone
-    // disproportionnee.
-    const marge = 0.5;
-    return _Bounds(
-      nord: math.min(90, nord + marge),
-      sud: math.max(-90, sud - marge),
-      est: math.min(180, est + marge),
-      ouest: math.max(-180, ouest - marge),
-    );
-  }
-
-  /// Vrai si le point est a moins de [rayonMetres] d'au moins un point
-  /// du trace echantillonne (distance approchee, suffisante ici car
-  /// la requete Overpass a deja borne la zone).
+  /// Vrai si le point est a moins de [rayonMetres] d'au moins un
+  /// centre du trace. Overpass a deja filtre par "around" : ce filtre
+  /// local est un simple filet de securite (avec une marge de 50% pour
+  /// ne pas ecarter un POI legitime situe entre deux centres).
   bool _estProcheDuTrace(
     double lat,
     double lon,
-    List<List<double>> echantillons,
+    List<List<double>> centres,
     int rayonMetres,
   ) {
-    for (final p in echantillons) {
-      if (_distanceApprocheeMetres(lat, lon, p[0], p[1]) <= rayonMetres) {
+    final rayon = rayonMetres * 1.5;
+    for (final p in centres) {
+      if (_distanceApprocheeMetres(lat, lon, p[0], p[1]) <= rayon) {
         return true;
       }
     }
@@ -260,18 +303,18 @@ class WaypointSuggestionService {
 
   /// Nom lisible d'un POI a partir de ses tags OSM, avec repli sur
   /// la categorie ou l'identifiant si le POI n'a pas de nom.
-  String _nomAffichable(Map<String, dynamic> tags, String id) {
+  String _nomAffichable(Map<String, dynamic> tags, String osmId) {
     for (final cle in ['name:fr', 'name', 'ref']) {
       final valeur = tags[cle];
       if (valeur is String && valeur.isNotEmpty) return valeur;
     }
     final categorie = _categoriePrincipale(tags);
     if (categorie.isNotEmpty) return _libelleCategorie(categorie);
-    return 'POI $id';
+    return 'POI $osmId';
   }
 
-  /// Premiere categorie OSM du POI qui correspond a un filtre connu,
-  /// sous la forme 'cle=valeur' (ex: 'natural=waterfall').
+  /// Premiere categorie OSM du POI qui correspond a une categorie
+  /// connue, sous la forme 'cle=valeur' (ex: 'natural=waterfall').
   String _categoriePrincipale(Map<String, dynamic> tags) {
     for (final entree in _categoriesParCle.entries) {
       final valeurs = entree.value.split('|');
@@ -306,17 +349,4 @@ class WaypointSuggestionService {
         return 'Point d\'interet';
     }
   }
-}
-
-class _Bounds {
-  final double nord;
-  final double sud;
-  final double est;
-  final double ouest;
-  _Bounds({
-    required this.nord,
-    required this.sud,
-    required this.est,
-    required this.ouest,
-  });
 }
