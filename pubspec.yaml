@@ -35,6 +35,8 @@ dependencies:
 
   # GPS / GPX
   gpx: ^2.3.0
+  # Geolocalisation (position de l'utilisateur sur la carte)
+  geolocator: ^12.0.0
 
   # Notes vocales
   speech_to_text: ^7.0.0

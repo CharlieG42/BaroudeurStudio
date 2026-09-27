@@ -12,6 +12,7 @@ import '../models/voyage.dart';
 import '../models/waypoint.dart';
 import '../services/nominatim_service.dart';
 import '../services/trip_calculation_service.dart';
+import '../services/geolocalisation_service.dart';
 import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
 import 'transfert_form_screen.dart';
@@ -61,6 +62,13 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
 
   final WaypointSuggestionService _suggestionService =
       WaypointSuggestionService();
+  final GeolocalisationService _geolocalisationService =
+      GeolocalisationService();
+
+  // Position de l'utilisateur sur la carte (null si non demandee ou
+  // indisponible). Demandee uniquement sur action explicite.
+  PositionUtilisateur? _positionUtilisateur;
+  bool _recuperationPosition = false;
 
   // Recherche d'adresse/lieu directement depuis la vue carte.
   final TextEditingController _rechercheCarteController =
@@ -238,6 +246,38 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       );
     } finally {
       if (mounted) setState(() => _chargementSuggestions = false);
+    }
+  }
+
+  /// Recupere la position de l'utilisateur et centre la carte dessus.
+  /// Sur erreur (permission refusee, service desactive...), affiche un
+  /// message explicite plutot que d'echouer silencieusement.
+  Future<void> _localiserUtilisateur() async {
+    if (_recuperationPosition) return;
+    setState(() => _recuperationPosition = true);
+    try {
+      final position = await _geolocalisationService.positionActuelle();
+      if (!mounted) return;
+      if (position == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Position indisponible pour le moment.'),
+          ),
+        );
+        return;
+      }
+      setState(() => _positionUtilisateur = position);
+      _mapController.move(
+        LatLng(position.latitude, position.longitude),
+        14,
+      );
+    } on GeolocalisationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _recuperationPosition = false);
     }
   }
 
@@ -757,6 +797,35 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                           ))
                       .toList(),
                 ),
+              if (_positionUtilisateur != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(
+                        _positionUtilisateur!.latitude,
+                        _positionUtilisateur!.longitude,
+                      ),
+                      width: 24,
+                      height: 24,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               MarkerLayer(
                 markers: _etapes.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -795,6 +864,23 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           child: SafeArea(
             bottom: false,
             child: _buildRechercheCarte(),
+          ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 12,
+          child: FloatingActionButton(
+            heroTag: 'btnLocalisation',
+            onPressed:
+                _recuperationPosition ? null : _localiserUtilisateur,
+            tooltip: 'Ma position',
+            child: _recuperationPosition
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.my_location),
           ),
         ),
       ],
