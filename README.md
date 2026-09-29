@@ -5,6 +5,12 @@ distance/dénivelé, modifiable) + notes vocales avec transcription
 automatique. Stockage SQLite + fichiers locaux. Toujours sans IA de
 rédaction, sans illustrations Ghibli, sans export pour le moment.
 
+Nouveau module **Préparation de trek** (icône sac à dos dans la barre du haut) :
+catalogue de matériel (nom, marque, description, poids, famille, sous-famille,
+photo) stocké en SQLite, familles/sous-familles et marques entièrement
+personnalisables, et listes de matériel par trek avec bilan des poids par
+catégorie et poids total du sac.
+
 > **Important si tu as déjà testé la v0.1** : la base de données passe en
 > version 2 (ajout de la table des photos). La migration est automatique au
 > premier lancement — tes treks et jours existants sont conservés, rien à
