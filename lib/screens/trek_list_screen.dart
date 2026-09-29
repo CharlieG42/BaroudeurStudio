@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../db/database_helper.dart';
 import '../models/trek.dart';
 import '../trip_planner/screens/voyage_list_screen.dart';
+import '../trek_prep/screens/trek_prep_screen.dart';
 import 'trek_form_screen.dart';
 import 'trek_detail_screen.dart';
 
@@ -77,6 +78,16 @@ class _TrekListScreenState extends State<TrekListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const VoyageListScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.backpack_outlined),
+            tooltip: 'Préparer un trek (matériel)',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TrekPrepScreen()),
               );
             },
           ),
