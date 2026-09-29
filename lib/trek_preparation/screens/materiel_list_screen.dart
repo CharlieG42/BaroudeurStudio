@@ -72,6 +72,7 @@ class _MaterielListScreenState extends State<MaterielListScreen> {
   Future<void> _ajouterAListe(Materiel materiel) async {
     final db = TrekPreparationDatabase.instance;
     final existe = await db.materielDansListe(widget.listeId!, materiel.id!);
+    if (!mounted) return;
     if (existe) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

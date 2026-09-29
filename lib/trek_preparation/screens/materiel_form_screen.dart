@@ -96,6 +96,7 @@ class _MaterielFormScreenState extends State<MaterielFormScreen> {
   Future<Marque?> _choisirOuCreerMarque() async {
     final db = TrekPreparationDatabase.instance;
     final marques = await db.getMarques();
+    if (!mounted) return null;
     final marqueExistante = await showDialog<Marque>(
       context: context,
       builder: (context) => AlertDialog(
@@ -122,7 +123,7 @@ class _MaterielFormScreenState extends State<MaterielFormScreen> {
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, Marque(id: -1)),
+            onPressed: () => Navigator.pop(context, Marque(id: -1, nom: '')),
             child: const Text('Nouvelle marque'),
           ),
         ],

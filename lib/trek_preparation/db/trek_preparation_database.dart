@@ -31,7 +31,7 @@ class TrekPreparationDatabase {
     }
     final dbDir = await getApplicationDocumentsDirectory();
     final path = p.join(dbDir.path, 'trek_preparation.db');
-    return databaseFactory.openDatabase(
+    return openDatabase(
       path,
       version: 1,
       onConfigure: (db) async {
