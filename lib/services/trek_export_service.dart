@@ -77,7 +77,7 @@ class TrekExportService {
         final gpxFichier = File(jour.cheminGpx!);
         if (await gpxFichier.exists()) {
           final bytes = await gpxFichier.readAsBytes();
-          gpxNomArchive = 'gpx/j${i}.gpx';
+          gpxNomArchive = 'gpx/j$i.gpx';
           archive.addFile(ArchiveFile(gpxNomArchive, bytes.length, bytes));
         }
       }

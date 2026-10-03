@@ -153,7 +153,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
   Future<void> _exporterTrek() async {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Préparation de l'export...')),
+      const SnackBar(content: Text("Préparation de l'export...")),
     );
     try {
       final fichier = await _exportService.exporterTrek(_trek);
@@ -183,7 +183,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
       messenger.hideCurrentSnackBar();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Échec de l'export : $e')),
+        SnackBar(content: Text("Échec de l'export : $e")),
       );
     }
   }
