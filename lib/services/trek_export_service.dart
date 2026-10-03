@@ -209,7 +209,7 @@ class TrekExportService {
         notesVocalesTranscription:
             jourData['notesVocalesTranscription'] as String? ?? '',
         texteGenereIA: jourData['texteGenereIA'] as String?,
-      ));
+      );
       final jourId = await db.insertJour(jour);
 
       // Le chemin GPX local depend de l'id du jour : on ne peut le
