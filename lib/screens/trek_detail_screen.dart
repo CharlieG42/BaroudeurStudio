@@ -1,11 +1,17 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../widgets/odp_settings_button.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
 import '../models/trek.dart';
 import '../models/jour_trek.dart';
+import '../services/trek_export_service.dart';
 import '../widgets/export_odp_button.dart';
+import '../widgets/odp_settings_button.dart';
 import 'trek_form_screen.dart';
 import 'jour_form_screen.dart';
 
@@ -22,6 +28,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
   late Trek _trek;
   List<JourTrek> _jours = [];
   bool _loading = true;
+  final TrekExportService _exportService = TrekExportService();
 
   @override
   void initState() {
@@ -141,6 +148,46 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
     }
   }
 
+  /// Exporte le trek en .bwzt puis propose de le partager (mobile)
+  /// ou de choisir l'emplacement d'enregistrement (Windows).
+  Future<void> _exporterTrek() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text("Préparation de l'export...")),
+    );
+    try {
+      final fichier = await _exportService.exporterTrek(_trek);
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Enregistrer le trek',
+          fileName: fichier.path.split(Platform.pathSeparator).last,
+          bytes: await fichier.readAsBytes(),
+          allowedExtensions: ['bwzt'],
+        );
+        if (savePath != null) {
+          await File(savePath).writeAsBytes(await fichier.readAsBytes());
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Trek exporté.')),
+          );
+        }
+      } else {
+        await Share.shareXFiles(
+          [XFile(fichier.path)],
+          subject: 'Trek : ${_trek.titre}',
+        );
+      }
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Échec de l'export : $e")),
+      );
+    }
+  }
+
   String _formatDateRange() {
     final fmt = DateFormat('dd/MM/yyyy');
     return '${fmt.format(DateTime.parse(_trek.dateDebut))} → ${fmt.format(DateTime.parse(_trek.dateFin))}';
@@ -152,6 +199,11 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
       appBar: AppBar(
         title: Text(_trek.titre),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Exporter (.bwzt)',
+            onPressed: _exporterTrek,
+          ),
           ExportOdpButton(trek: _trek),
           const OdpSettingsButton(),
           IconButton(

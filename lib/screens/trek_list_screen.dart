@@ -1,9 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../widgets/about_button.dart';
 import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
 import '../models/trek.dart';
+import '../services/trek_export_service.dart';
 import '../trip_planner/screens/voyage_list_screen.dart';
 import 'trek_form_screen.dart';
 import 'trek_detail_screen.dart';
@@ -18,6 +20,8 @@ class TrekListScreen extends StatefulWidget {
 class _TrekListScreenState extends State<TrekListScreen> {
   List<Trek> _treks = [];
   bool _loading = true;
+  bool _importEnCours = false;
+  final TrekExportService _exportService = TrekExportService();
 
   @override
   void initState() {
@@ -42,6 +46,43 @@ class _TrekListScreenState extends State<TrekListScreen> {
       return '${fmt.format(debut)} → ${fmt.format(fin)}';
     } catch (_) {
       return '${trek.dateDebut} → ${trek.dateFin}';
+    }
+  }
+
+  /// Importe un fichier .bwzt choisi par l'utilisateur : cree un
+  /// nouveau trek local (jours, medias, traces GPX inclus).
+  Future<void> _importerTrek() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['bwzt'],
+    );
+    final chemin = result?.files.single.path;
+    if (chemin == null) return;
+    setState(() => _importEnCours = true);
+    try {
+      final trekId = await _exportService.importerTrek(chemin);
+      await _loadTreks();
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      final trek = await DatabaseHelper.instance.getTrek(trekId);
+      if (trek != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${trek.titre}" importé.')),
+        );
+        _openTrekDetail(trek);
+      }
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Échec de l'import : $e")),
+      );
     }
   }
 
@@ -79,6 +120,11 @@ class _TrekListScreenState extends State<TrekListScreen> {
                 MaterialPageRoute(builder: (_) => const VoyageListScreen()),
               );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Importer un trek (.bwzt)',
+            onPressed: _importEnCours ? null : _importerTrek,
           ),
           const AboutButton(),
         ],

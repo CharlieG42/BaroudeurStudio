@@ -3,7 +3,11 @@
 Treks + journal quotidien + photos (appareil) + import de trace GPX (calcul automatique
 distance/dénivelé, modifiable) + notes vocales avec transcription
 automatique. Stockage SQLite + fichiers locaux. Toujours sans IA de
-rédaction, sans illustrations Ghibli, sans export pour le moment.
+rédaction, sans illustrations Ghibli. Import/export de trek au format
+`.bwzt` (icône d'import en haut de la liste des treks, icône de partage
+dans la fiche du trek) : archive ZIP standard (JSON + médias + traces GPX)
+pour transférer un carnet complet d'un appareil à un autre, sans compte ni
+service en ligne.
 
 > **Important si tu as déjà testé la v0.1** : la base de données passe en
 > version 2 (ajout de la table des photos). La migration est automatique au
