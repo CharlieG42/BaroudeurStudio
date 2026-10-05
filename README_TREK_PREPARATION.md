@@ -58,7 +58,8 @@ lib/trek_preparation/
   models/       Famille, SousFamille, Marque, Materiel, ListeMateriel,
                 LigneListe (+ LigneListeDetaillee, PoidsParFamille)
   db/           TrekPreparationDatabase (SQLite séparé : trek_preparation.db)
-  services/     MaterielPhotoStorageService (copie/suppression des photos)
+  services/     MaterielPhotoStorageService (copie/suppression des photos),
+                PreparationExportService (import/export .bwzt)
   screens/      ListeMaterielListScreen (accueil du module),
                 ListeMaterielFormScreen, ListeMaterielDetailScreen,
                 MaterielListScreen (catalogue, aussi en mode sélection),
@@ -71,6 +72,23 @@ lib/trek_preparation/
 - `lib/screens/trek_list_screen.dart` : ajout d'une icône dans l'AppBar
   pour ouvrir le nouveau module. C'est la seule modification du code
   existant.
+
+## Import / export (.bwzt)
+
+L'écran d'accueil du module propose deux icônes supplémentaires :
+
+- **Importer** (flèche upload) : ouvre un fichier `.bwzt` et intègre le
+  catalogue (familles, sous-familles, marques, matériels avec photos)
+  puis crée les listes de préparation contenues dans l'archive.
+- **Exporter** (icône partage) : génère un fichier `preparation_trek.bwzt`
+  contenant tout le module (catalogue + listes), à partager sur mobile ou
+  à enregistrer via une boîte de dialogue sur Windows.
+
+Le `.bwzt` est une archive ZIP standard (renommer en `.zip` pour
+l'inspecter) contenant `preparation.json` et le dossier `photos/`. À
+l'import, familles/sous-familles/marques sont dédupliquées par nom, les
+matériels existants (même nom + même marque) sont réutilisés, et les
+listes sont toujours créées en nouvelles.
 
 Aucune nouvelle dépendance : le module réutilise `sqflite`,
 `sqflite_common_ffi`, `path_provider`, `path`, `uuid` et `file_picker`
