@@ -486,12 +486,30 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
               CheckedPopupMenuItem<String>(
                 value: 'sentiers',
                 checked: _afficherSentiers,
-                child: const Text('Sentiers de randonnee (GR/GRP/PR)'),
+                child: const Row(
+                  children: [
+                    Icon(Icons.hiking, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Sentiers de randonnee (GR/GRP/PR)'),
+                    ),
+                  ],
+                ),
               ),
               CheckedPopupMenuItem<String>(
                 value: 'waypoints',
                 checked: _afficherWaypoints,
-                child: const Text('Waypoints (recommandes et personnels)'),
+                child: const Row(
+                  children: [
+                    Icon(Icons.thumb_up_outlined, size: 20),
+                    SizedBox(width: 4),
+                    Icon(Icons.push_pin, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Waypoints (recommandes et personnels)'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -788,7 +806,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                               child: Icon(
                                 waypoint.estPersonnel
                                     ? Icons.push_pin
-                                    : Icons.star,
+                                    : Icons.thumb_up,
                                 size: 28,
                                 color: waypoint.estPersonnel
                                     ? Colors.red.shade700
@@ -1074,7 +1092,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   Icon(
                     waypoint.estPersonnel
                         ? Icons.push_pin
-                        : Icons.star,
+                        : Icons.thumb_up,
                     size: 20,
                     color: waypoint.estPersonnel
                         ? Colors.red.shade700
