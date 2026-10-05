@@ -1,6 +1,12 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../db/trek_preparation_database.dart';
+import '../services/preparation_export_service.dart';
 import '../models/materiel_models.dart';
 import 'liste_materiel_form_screen.dart';
 import 'liste_materiel_detail_screen.dart';
@@ -19,6 +25,8 @@ class ListeMaterielListScreen extends StatefulWidget {
 class _ListeMaterielListScreenState extends State<ListeMaterielListScreen> {
   List<ListeMaterielData> _listes = [];
   bool _loading = true;
+  bool _importEnCours = false;
+  final PreparationExportService _exportService = PreparationExportService();
 
   @override
   void initState() {
@@ -44,6 +52,84 @@ class _ListeMaterielListScreenState extends State<ListeMaterielListScreen> {
       _listes = data;
       _loading = false;
     });
+  }
+
+  /// Exporte tout le module (catalogue + listes) en .bwzt puis propose
+  /// de le partager (mobile) ou de choisir l'emplacement
+  /// d'enregistrement (Windows).
+  Future<void> _exporterPreparation() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text("Préparation de l'export...")),
+    );
+    try {
+      final fichier = await _exportService.exporterPreparation();
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Enregistrer la préparation',
+          fileName: fichier.path.split(Platform.pathSeparator).last,
+          bytes: await fichier.readAsBytes(),
+          allowedExtensions: ['bwzt'],
+        );
+        if (savePath != null) {
+          await File(savePath).writeAsBytes(await fichier.readAsBytes());
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Préparation exportée.')),
+          );
+        }
+      } else {
+        await Share.shareXFiles(
+          [XFile(fichier.path)],
+          subject: 'Préparation de trek',
+        );
+      }
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Échec de l'export : $e")),
+      );
+    }
+  }
+
+  /// Importe un fichier .bwzt : integre le catalogue et cree les
+  /// listes de preparation contenues dans l'archive.
+  Future<void> _importerPreparation() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['bwzt'],
+    );
+    final chemin = result?.files.single.path;
+    if (chemin == null) return;
+    setState(() => _importEnCours = true);
+    try {
+      final nbListes = await _exportService.importerPreparation(chemin);
+      await _loadListes();
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Import réussi : $nbListes liste(s) et le catalogue de matériel.',
+          ),
+        ),
+      );
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _importEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Échec de l'import : $e")),
+      );
+    }
   }
 
   Future<void> _openNewListe() async {
@@ -82,6 +168,16 @@ class _ListeMaterielListScreenState extends State<ListeMaterielListScreen> {
               );
               _loadListes();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Importer la préparation (.bwzt)',
+            onPressed: _importEnCours ? null : _importerPreparation,
+          ),
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Exporter la préparation (.bwzt)',
+            onPressed: _exporterPreparation,
           ),
         ],
       ),
