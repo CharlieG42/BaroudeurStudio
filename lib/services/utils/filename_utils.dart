@@ -27,7 +27,7 @@ class FilenameUtils {
     }
     
     // Ajouter l'extension
-    return sanitized + '.' + extension;
+    return '$sanitized.$extension';
   }
 
   /// Nettoie une chaîne pour être utilisée comme nom de fichier

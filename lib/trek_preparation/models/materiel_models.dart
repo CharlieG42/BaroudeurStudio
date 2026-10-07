@@ -1,3 +1,5 @@
+library;
+
 /// Modeles du module de preparation de trek (checklist de materiel).
 /// Famille / sous-famille / marque sont personnalisables par
 /// l'utilisateur et stockees en base, tout comme le materiel.

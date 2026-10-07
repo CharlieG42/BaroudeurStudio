@@ -91,6 +91,7 @@ class _CompressionSettingsDialogState extends State<CompressionSettingsDialog> {
         FilledButton(
           onPressed: () {
             AppConfig.setCompressionQuality(_currentQuality);
+            if (!context.mounted) return;
             Navigator.pop(context, _currentQuality);
           },
           child: const Text('Enregistrer'),
@@ -141,6 +142,7 @@ class CompressionSettingsButton extends StatelessWidget {
         );
         
         if (newQuality != null) {
+          if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Qualite de compression definie a $newQuality%'),

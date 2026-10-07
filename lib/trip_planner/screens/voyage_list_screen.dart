@@ -183,6 +183,7 @@ class _VoyageListScreenState extends State<VoyageListScreen> {
       setState(() => _importEnCours = false);
 
       final voyage = await TripPlannerDatabase.instance.getVoyage(voyageId);
+      if (!mounted) return;
       if (voyage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('"${voyage.titre}" importe.')),

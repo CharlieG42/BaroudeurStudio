@@ -66,6 +66,7 @@ class _TrekListScreenState extends State<TrekListScreen> {
       if (!mounted) return;
       setState(() => _importEnCours = false);
       final trek = await DatabaseHelper.instance.getTrek(trekId);
+      if (!mounted) return;
       if (trek != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('"${trek.titre}" importé.')),

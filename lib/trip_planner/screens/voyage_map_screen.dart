@@ -351,19 +351,6 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     }
   }
 
-  Future<void> _onReorder(int oldIndex, int newIndex) async {
-    setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
-      final etape = _etapes.removeAt(oldIndex);
-      _etapes.insert(newIndex, etape);
-    });
-    for (var i = 0; i < _etapes.length; i++) {
-      await TripPlannerDatabase.instance
-          .updateEtape(_etapes[i].copyWith(ordre: i));
-    }
-    await _recalculerTrajets();
-  }
-
   Future<void> _modifierVoyage() async {
     final updated = await Navigator.push<bool>(
       context,
@@ -1284,7 +1271,18 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     return ReorderableListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
       itemCount: _etapes.length,
-      onReorder: _onReorder,
+      onReorderItem: (oldItemIndex, newItemIndex) async {
+        setState(() {
+          if (newItemIndex > oldItemIndex) newItemIndex -= 1;
+          final etape = _etapes.removeAt(oldItemIndex);
+          _etapes.insert(newItemIndex, etape);
+        });
+        for (var i = 0; i < _etapes.length; i++) {
+          await TripPlannerDatabase.instance
+              .updateEtape(_etapes[i].copyWith(ordre: i));
+        }
+        await _recalculerTrajets();
+      },
       itemBuilder: (context, index) {
         final etape = _etapes[index];
         final trajet = _trajetDepuis(etape);

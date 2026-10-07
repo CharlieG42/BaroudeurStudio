@@ -229,7 +229,7 @@ class _MaterielFormScreenState extends State<MaterielFormScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<Famille>(
-              value: _famille,
+              initialValue: _famille,
               decoration: const InputDecoration(
                 labelText: 'Famille',
                 border: OutlineInputBorder(),
@@ -244,7 +244,7 @@ class _MaterielFormScreenState extends State<MaterielFormScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<SousFamille>(
-              value: _sousFamille,
+              initialValue: _sousFamille,
               decoration: const InputDecoration(
                 labelText: 'Sous-famille (optionnel)',
                 border: OutlineInputBorder(),
