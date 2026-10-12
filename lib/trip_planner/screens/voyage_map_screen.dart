@@ -205,6 +205,27 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   /// personnels ne sont jamais touches. Sans trace routier (trajets
   /// non calcules ou mode manuel), on retombe sur une ligne brisee
   /// entre etapes consecutives.
+  /// Ouvre la fenetre de parametres de planification, puis rappele
+  /// de relancer le recalcul pour les appliquer.
+  Future<void> _ouvrirParametres() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ParametresPlanificationScreen(),
+      ),
+    );
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Parametres enregistres. Relance « Recalculer les '
+            'trajets » pour les appliquer.',
+          ),
+        ),
+      );
+    }
+  }
+
   /// Pre-telecharge les tuiles de la zone visible pour un usage
   /// hors ligne : l'utilisateur choisit la plage de zooms (la zone est
   /// la vue actuelle de la carte), puis les tuiles sont enregistrees
@@ -689,75 +710,9 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       appBar: AppBar(
         title: Text(widget.voyage.titre),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.tune),
-            tooltip: 'Parametres de planification',
-            onPressed: () async {
-              final changed = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ParametresPlanificationScreen(),
-                ),
-              );
-              if (changed == true && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Parametres enregistres. Relance "Recalculer les '
-                      'trajets" pour les appliquer.',
-                    ),
-                  ),
-                );
-              }
-            },
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Fond de carte et sentiers',
-            icon: Icon(_iconeFond(_fondCarte)),
-            onSelected: (valeur) {
-              if (valeur == 'sentiers') {
-                setState(() => _afficherSentiers = !_afficherSentiers);
-              } else if (valeur == 'waypoints') {
-                setState(() => _afficherWaypoints = !_afficherWaypoints);
-              } else {
-                setState(() => _fondCarte = FondCarte.values.byName(valeur));
-              }
-            },
-            itemBuilder: (context) => [
-              _itemFondCarte(FondCarte.osm, 'OpenStreetMap'),
-              _itemFondCarte(FondCarte.ignPlan, 'IGN - Plan'),
-              _itemFondCarte(FondCarte.ignPhoto, 'IGN - Photos aeriennes'),
-              const PopupMenuDivider(),
-              CheckedPopupMenuItem<String>(
-                value: 'sentiers',
-                checked: _afficherSentiers,
-                child: const Row(
-                  children: [
-                    Icon(Icons.hiking, size: 20),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text('Sentiers de randonnee (GR/GRP/PR)'),
-                    ),
-                  ],
-                ),
-              ),
-              CheckedPopupMenuItem<String>(
-                value: 'waypoints',
-                checked: _afficherWaypoints,
-                child: const Row(
-                  children: [
-                    Icon(Icons.thumb_up_outlined, size: 20),
-                    SizedBox(width: 4),
-                    Icon(Icons.push_pin, size: 20),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text('Waypoints (recommandes et personnels)'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          // Actions de carte : suggestions, liste et mode epingle
+          // restent accessibles en un tap (usage frequent pendant la
+          // planification).
           IconButton(
             icon: _chargementSuggestions
                 ? const SizedBox(
@@ -805,7 +760,58 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
               }
             },
           ),
-          IconButton(
+          // Menu calques (fond de carte, sentiers, waypoints) : inchange.
+          PopupMenuButton<String>(
+            tooltip: 'Fond de carte et calques',
+            icon: Icon(_iconeFond(_fondCarte)),
+            onSelected: (valeur) {
+              if (valeur == 'sentiers') {
+                setState(() => _afficherSentiers = !_afficherSentiers);
+              } else if (valeur == 'waypoints') {
+                setState(() => _afficherWaypoints = !_afficherWaypoints);
+              } else {
+                setState(() => _fondCarte = FondCarte.values.byName(valeur));
+              }
+            },
+            itemBuilder: (context) => [
+              _itemFondCarte(FondCarte.osm, 'OpenStreetMap'),
+              _itemFondCarte(FondCarte.ignPlan, 'IGN - Plan'),
+              _itemFondCarte(FondCarte.ignPhoto, 'IGN - Photos aeriennes'),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<String>(
+                value: 'sentiers',
+                checked: _afficherSentiers,
+                child: const Row(
+                  children: [
+                    Icon(Icons.hiking, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Sentiers de randonnee (GR/GRP/PR)'),
+                    ),
+                  ],
+                ),
+              ),
+              CheckedPopupMenuItem<String>(
+                value: 'waypoints',
+                checked: _afficherWaypoints,
+                child: const Row(
+                  children: [
+                    Icon(Icons.thumb_up_outlined, size: 20),
+                    SizedBox(width: 4),
+                    Icon(Icons.push_pin, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Waypoints (recommandes et personnels)'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Menu principal : tout ce qui n'est pas une action de carte
+          // immediate, pour desengorger l'AppBar.
+          PopupMenuButton<String>(
+            tooltip: 'Plus d\'actions',
             icon: _chargementTuiles
                 ? SizedBox(
                     width: 20,
@@ -818,54 +824,102 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                           : null,
                     ),
                   )
-                : const Icon(Icons.download_for_offline_outlined),
-            tooltip: _chargementTuiles
-                ? 'Telechargement : $_tuilesTelechargees/$_tuilesTotal tuiles'
-                : 'Enregistrer la zone pour un usage hors ligne',
-            onPressed: _chargementTuiles
-                ? () => setState(() => _annulerTuiles = true)
-                : _afficherDialogueZoneHorsLigne,
-          ),
-          PopupMenuButton<ModeAffichage>(
-            tooltip: 'Disposition de l\'ecran',
-            icon: Icon(_iconeModeAffichage(_modeAffichage)),
-            onSelected: (mode) => setState(() => _modeAffichage = mode),
+                : const Icon(Icons.more_vert),
+            onSelected: (valeur) {
+              switch (valeur) {
+                case 'parametres':
+                  _ouvrirParametres();
+                case 'horsligne':
+                  _afficherDialogueZoneHorsLigne();
+                case 'recalculer':
+                  if (!_recalcul) _recalculerTrajets();
+                case 'modifier':
+                  _modifierVoyage();
+                case 'dispo_partage':
+                  setState(() => _modeAffichage = ModeAffichage.partage);
+                case 'dispo_carte':
+                  setState(() => _modeAffichage = ModeAffichage.carte);
+                case 'dispo_liste':
+                  setState(() => _modeAffichage = ModeAffichage.liste);
+              }
+            },
             itemBuilder: (context) => [
-              _itemModeAffichage(
-                ModeAffichage.partage,
-                Icons.vertical_split_outlined,
-                'Carte + liste (partage)',
+              const PopupMenuItem<String>(
+                value: 'parametres',
+                child: Row(
+                  children: [
+                    Icon(Icons.tune, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Parametres de planification')),
+                  ],
+                ),
               ),
-              _itemModeAffichage(
-                ModeAffichage.carte,
-                Icons.map_outlined,
-                'Carte plein ecran',
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<String>(
+                value: 'dispo_partage',
+                checked: _modeAffichage == ModeAffichage.partage,
+                child: const Row(
+                  children: [
+                    Icon(Icons.vertical_split_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Carte + liste')),
+                  ],
+                ),
               ),
-              _itemModeAffichage(
-                ModeAffichage.liste,
-                Icons.view_list_outlined,
-                'Liste plein ecran',
+              CheckedPopupMenuItem<String>(
+                value: 'dispo_carte',
+                checked: _modeAffichage == ModeAffichage.carte,
+                child: const Row(
+                  children: [
+                    Icon(Icons.map_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Carte plein ecran')),
+                  ],
+                ),
+              ),
+              CheckedPopupMenuItem<String>(
+                value: 'dispo_liste',
+                checked: _modeAffichage == ModeAffichage.liste,
+                child: const Row(
+                  children: [
+                    Icon(Icons.view_list_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Liste plein ecran')),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'horsligne',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_for_offline_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Zone hors ligne')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'recalculer',
+                child: Row(
+                  children: [
+                    Icon(Icons.alt_route, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Recalculer les trajets')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'modifier',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Modifier le voyage')),
+                  ],
+                ),
               ),
             ],
-          ),
-          IconButton(
-            icon: _recalcul
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.alt_route),
-            tooltip: 'Recalculer les trajets',
-            onPressed: _recalcul ? null : _recalculerTrajets,
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Modifier le voyage',
-            onPressed: _modifierVoyage,
           ),
         ],
       ),
@@ -880,49 +934,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     );
   }
 
-  IconData _iconeModeAffichage(ModeAffichage mode) {
-    switch (mode) {
-      case ModeAffichage.carte:
-        return Icons.map_outlined;
-      case ModeAffichage.liste:
-        return Icons.view_list_outlined;
-      case ModeAffichage.partage:
-        return Icons.vertical_split_outlined;
-    }
-  }
 
-  PopupMenuItem<ModeAffichage> _itemModeAffichage(
-    ModeAffichage mode,
-    IconData icone,
-    String libelle,
-  ) {
-    final selectionne = _modeAffichage == mode;
-    return PopupMenuItem<ModeAffichage>(
-      value: mode,
-      child: Row(
-        children: [
-          Icon(
-            icone,
-            size: 20,
-            color: selectionne ? Theme.of(context).colorScheme.primary : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              libelle,
-              style: TextStyle(
-                fontWeight: selectionne ? FontWeight.bold : null,
-                color:
-                    selectionne ? Theme.of(context).colorScheme.primary : null,
-              ),
-            ),
-          ),
-          if (selectionne)
-            Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary),
-        ],
-      ),
-    );
-  }
 
   IconData _iconeFond(FondCarte fond) {
     switch (fond) {
