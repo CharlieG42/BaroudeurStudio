@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
+import '../models/parametres_planification.dart';
 import 'brouter_service.dart';
+import 'elevation_service.dart';
 import 'osrm_service.dart';
 
 /// Orchestre le recalcul des trajets entre etapes consecutives d'un
@@ -18,14 +22,17 @@ import 'osrm_service.dart';
 class TripCalculationService {
   final OsrmService _osrm;
   final BrouterService _brouter;
+  final ElevationService _elevation;
   final TripPlannerDatabase _db;
 
   TripCalculationService({
     OsrmService? osrmService,
     BrouterService? brouterService,
+    ElevationService? elevationService,
     TripPlannerDatabase? database,
   })  : _osrm = osrmService ?? OsrmService(),
         _brouter = brouterService ?? BrouterService(osrmService: osrmService),
+        _elevation = elevationService ?? ElevationService(),
         _db = database ?? TripPlannerDatabase.instance;
 
   /// Recalcule les trajets auto-calcules (voiture/velo/vtt/marche) du
@@ -77,6 +84,7 @@ class TripCalculationService {
       }
     }
 
+    final parametres = await _db.getParametres();
     int echecs = 0;
     for (var i = 0; i < etapes.length - 1; i++) {
       final Etape depart = etapes[i];

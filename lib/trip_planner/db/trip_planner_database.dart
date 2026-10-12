@@ -8,6 +8,7 @@ import '../models/voyage.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import '../models/document_etape.dart';
+import '../models/parametres_planification.dart';
 import '../models/waypoint.dart';
 
 /// Couche d'acces a la base de donnees du module de planification de
@@ -39,7 +40,7 @@ class TripPlannerDatabase {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -72,6 +73,17 @@ class TripPlannerDatabase {
     if (oldVersion < 4) {
       await _createWaypointsTableIfMissing(db);
     }
+    if (oldVersion < 5) {
+      await _createParametresTableIfMissing(db);
+      await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'INTEGER');
+      await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'INTEGER');
+      await _addColumnIfMissing(
+        db,
+        'trajets',
+        'profil_altitude_json',
+        'TEXT',
+      );
+    }
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas
@@ -87,6 +99,18 @@ class TripPlannerDatabase {
     if (!exists) {
       await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
     }
+  }
+
+  /// Table cle/valeur des parametres de planification (vitesses
+  /// moyennes, preferences d'itineraire). Une ligne par cle, la valeur
+  /// stockee en TEXT.
+  Future<void> _createParametresTableIfMissing(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS parametres (
+        cle TEXT PRIMARY KEY,
+        valeur TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _createWaypointsTableIfMissing(Database db) async {
@@ -175,6 +199,32 @@ class TripPlannerDatabase {
 
     await _createDocumentsTableIfMissing(db);
     await _createWaypointsTableIfMissing(db);
+    await _createParametresTableIfMissing(db);
+  }
+
+  // PARAMETRES
+
+  /// Charge les parametres de planification ; les cles absentes
+  /// prennent les valeurs par defaut de [ParametresPlanification].
+  Future<ParametresPlanification> getParametres() async {
+    final db = await database;
+    final maps = await db.query('parametres');
+    final map = <String, String?>{
+      for (final m in maps) m['cle'] as String: m['valeur'] as String?,
+    };
+    return ParametresPlanification.fromMap(map);
+  }
+
+  /// Remplace l'ensemble des parametres par ceux donnes (ecriture
+  /// cle/valeur, une ligne par entree).
+  Future<void> saveParametres(ParametresPlanification p) async {
+    final db = await database;
+    final batch = db.batch();
+    batch.delete('parametres');
+    for (final entry in p.toMap().entries) {
+      batch.insert('parametres', {'cle': entry.key, 'valeur': entry.value});
+    }
+    await batch.commit();
   }
 
   // VOYAGES

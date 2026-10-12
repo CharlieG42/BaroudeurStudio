@@ -69,13 +69,27 @@ class OsrmService {
     required double lonDepart,
     required double latArrivee,
     required double lonArrivee,
+    bool eviterAutoroutes = false,
+    bool eviterPeages = false,
   }) async {
     final coords = '$lonDepart,$latDepart;$lonArrivee,$latArrivee';
     final url = baseUrlPattern.replaceFirst('{profil}', _instance(mode));
-    final uri = Uri.parse(
-      '$url/$coords'
-      '?overview=full&geometries=geojson&alternatives=false&steps=false',
-    );
+    // Options d'exclusion supportees par le profil voiture FOSSGIS :
+    // motorway (autoroutes) et toll (peage). Sans effet reel sur les
+    // profils bike/foot (pas d'autoroutes dans leur graphe), on ne
+    // les envoie que pour la voiture pour garder des URLs simples.
+    final excludes = <String>[
+      if (mode == ModeTransport.voiture && eviterAutoroutes) 'motorway',
+      if (mode == ModeTransport.voiture && eviterPeages) 'toll',
+    ];
+    final parametresUrl = [
+      'overview=full',
+      'geometries=geojson',
+      'alternatives=false',
+      'steps=false',
+      if (excludes.isNotEmpty) 'exclude=${excludes.join(',')}',
+    ].join('&');
+    final uri = Uri.parse('$url/$coords?$parametresUrl');
     try {
       final response = await http
           .get(uri)

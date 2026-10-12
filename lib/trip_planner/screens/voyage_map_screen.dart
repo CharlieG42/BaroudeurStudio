@@ -15,7 +15,9 @@ import '../services/trip_calculation_service.dart';
 import '../services/geolocalisation_service.dart';
 import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
+import '../widgets/profil_altitude_chart.dart';
 import 'transfert_form_screen.dart';
+import 'parametres_planification_screen.dart';
 import 'voyage_form_screen.dart';
 
 /// Disposition de l'ecran : carte seule en plein ecran, liste des
@@ -457,6 +459,28 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       appBar: AppBar(
         title: Text(widget.voyage.titre),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Parametres de planification',
+            onPressed: () async {
+              final changed = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ParametresPlanificationScreen(),
+                ),
+              );
+              if (changed == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Parametres enregistres. Relance "Recalculer les '
+                      'trajets" pour les appliquer.',
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
           PopupMenuButton<String>(
             tooltip: 'Fond de carte et sentiers',
             icon: Icon(_iconeFond(_fondCarte)),
@@ -1312,7 +1336,15 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
             ),
             if (etapeSuivante != null)
               InkWell(
-                onTap: () => _modifierTransfert(etape, etapeSuivante),
+                onTap: () {
+                  final t = _trajetDepuis(etape);
+                  if (t != null && t.mode.estAutoCalcule) {
+                    _afficherProfilTrajet(t, etape, etapeSuivante);
+                  } else {
+                    _modifierTransfert(etape, etapeSuivante);
+                  }
+                }
+                onLongPress: () => _modifierTransfert(etape, etapeSuivante),
                 child: Padding(
                   padding: const EdgeInsets.only(
                     left: 72,
@@ -1350,12 +1382,64 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     );
   }
 
+  /// Fiche detail d'un trajet auto-calcule : resume complet (distance,
+  /// duree, denivele) et graphique altitude/distance du trace.
+  void _afficherProfilTrajet(Trajet trajet, Etape depart, Etape arrivee) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(_iconeMode(trajet.mode), size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${depart.nom} → ${arrivee.nom}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _modifierTransfert(depart, arrivee);
+                  },
+                  child: const Text('Modifier'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${_libelleModeCourt(trajet.mode)} · '
+              '${trajet.distanceKm.toStringAsFixed(1)} km · '
+              '${_formatDuree(trajet.dureeMinutes)}'
+              '${trajet.denivelePositifM > 0 ? ' · +${trajet.denivelePositifM} m D+' : ''}'
+              '${trajet.deniveleNegatifM > 0 ? ' · -${trajet.deniveleNegatifM} m D-' : ''}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            ProfilAltitudeChart(profil: trajet.profilAltitude),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _libelleTrajet(Trajet? trajet) {
     if (trajet == null) return 'Trajet non calcule · appuyer pour definir';
     if (trajet.mode.estAutoCalcule) {
+      final denivele = trajet.denivelePositifM > 0
+          ? ' · +${trajet.denivelePositifM} m'
+          : '';
       return '${trajet.distanceKm.toStringAsFixed(0)} km · '
           '${_formatDuree(trajet.dureeMinutes)}'
-          '${trajet.mode == ModeTransport.voiture ? ' de route' : ''}';
+          '${trajet.mode == ModeTransport.voiture ? ' de route' : ''}'
+          '$denivele';
     }
     final heures =
         (trajet.heureDepart != null && trajet.heureArrivee != null)

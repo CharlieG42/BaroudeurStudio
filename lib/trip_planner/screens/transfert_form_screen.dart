@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../db/trip_planner_database.dart';
+import '../services/elevation_service.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import '../services/brouter_service.dart';
@@ -39,6 +42,7 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
   final _notesController = TextEditingController();
   final _osrmService = OsrmService();
   final _brouterService = BrouterService();
+  final _elevationService = ElevationService();
   TimeOfDay? _heureDepart;
   TimeOfDay? _heureArrivee;
   bool _enregistrement = false;

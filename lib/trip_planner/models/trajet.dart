@@ -65,7 +65,25 @@ class Trajet {
     this.heureDepart,
     this.heureArrivee,
     this.notes = '',
+    this.denivelePositifM = 0,
+    this.deniveleNegatifM = 0,
+    this.profilAltitudeJson = '[]',
   });
+
+  /// Decode le profil d'altitude en couples [distance_km, altitude_m].
+  List<List<double>> get profilAltitude {
+    if (profilAltitudeJson.isEmpty) return [];
+    final decoded = jsonDecode(profilAltitudeJson) as List<dynamic>;
+    return decoded
+        .map((p) => (p as List<dynamic>)
+            .map((v) => (v as num).toDouble())
+            .toList())
+        .toList();
+  }
+
+  static String encodeProfilAltitude(List<List<double>> profil) {
+    return jsonEncode(profil);
+  }
 
   /// Decode le trace en une liste de couples [latitude, longitude].
   /// Vide pour les trajets non routiers (pas de trace calcule).
@@ -99,6 +117,9 @@ class Trajet {
       'heure_depart': heureDepart,
       'heure_arrivee': heureArrivee,
       'notes': notes,
+      'denivele_positif_m': denivelePositifM,
+      'denivele_negatif_m': deniveleNegatifM,
+      'profil_altitude_json': profilAltitudeJson,
     };
   }
 
@@ -118,6 +139,9 @@ class Trajet {
       heureDepart: map['heure_depart'] as String?,
       heureArrivee: map['heure_arrivee'] as String?,
       notes: map['notes'] as String? ?? '',
+      denivelePositifM: (map['denivele_positif_m'] as int? ?? 0),
+      deniveleNegatifM: (map['denivele_negatif_m'] as int? ?? 0),
+      profilAltitudeJson: map['profil_altitude_json'] as String? ?? '[]',
     );
   }
 }
