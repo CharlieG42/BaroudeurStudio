@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
 import 'brouter_service.dart';
+import 'elevation_service.dart';
 import 'osrm_service.dart';
 
 /// Orchestre le recalcul des trajets entre etapes consecutives d'un
@@ -18,14 +21,17 @@ import 'osrm_service.dart';
 class TripCalculationService {
   final OsrmService _osrm;
   final BrouterService _brouter;
+  final ElevationService _elevation;
   final TripPlannerDatabase _db;
 
   TripCalculationService({
     OsrmService? osrmService,
     BrouterService? brouterService,
+    ElevationService? elevationService,
     TripPlannerDatabase? database,
   })  : _osrm = osrmService ?? OsrmService(),
         _brouter = brouterService ?? BrouterService(osrmService: osrmService),
+        _elevation = elevationService ?? ElevationService(),
         _db = database ?? TripPlannerDatabase.instance;
 
   /// Recalcule les trajets auto-calcules (voiture/velo/vtt/marche) du
@@ -77,6 +83,7 @@ class TripCalculationService {
       }
     }
 
+    final parametres = await _db.getParametres();
     int echecs = 0;
     for (var i = 0; i < etapes.length - 1; i++) {
       final Etape depart = etapes[i];
@@ -103,11 +110,43 @@ class TripCalculationService {
               lonDepart: depart.longitude,
               latArrivee: arrivee.latitude,
               lonArrivee: arrivee.longitude,
+              eviterAutoroutes: parametres.eviterAutoroutes,
+              eviterPeages: parametres.eviterPeages,
             );
 
       if (resultat == null) {
         echecs++;
         continue;
+      }
+
+      // Correction de la duree selon les vitesses moyennes de
+      // l'utilisateur : les profils de routage supposent un terrain
+      // plat et un rythme soutenu ; un randonneur en montagne ou un
+      // cyclotouriste charge est plus lent.
+      var dureeMinutes = resultat.dureeMinutes;
+      if (mode == ModeTransport.marche &&
+          parametres.vitesseMarcheKmh > 0) {
+        dureeMinutes =
+            (resultat.distanceKm / parametres.vitesseMarcheKmh * 60)
+                .round();
+      } else if (mode == ModeTransport.velo &&
+          parametres.vitesseVeloKmh > 0) {
+        dureeMinutes =
+            (resultat.distanceKm / parametres.vitesseVeloKmh * 60).round();
+      }
+
+      // Denivele et profil d'altitude du trace (best effort : sans
+      // reseau, le trajet reste exploitable, simplement sans profil).
+      var denivelePositif = 0;
+      var deniveleNegatif = 0;
+      var profilJson = '[]';
+      if (resultat.points.isNotEmpty) {
+        final profil = await _elevation.calculerProfil(resultat.points);
+        if (profil != null) {
+          denivelePositif = profil.denivelePositifM;
+          deniveleNegatif = profil.deniveleNegatifM;
+          profilJson = jsonEncode(profil.toList());
+        }
       }
 
       await _db.upsertTrajet(Trajet(
@@ -116,8 +155,11 @@ class TripCalculationService {
         etapeArriveeId: arrivee.id!,
         mode: mode,
         distanceKm: resultat.distanceKm,
-        dureeMinutes: resultat.dureeMinutes,
+        dureeMinutes: dureeMinutes,
         geometrieJson: Trajet.encodePoints(resultat.points),
+        denivelePositifM: denivelePositif,
+        deniveleNegatifM: deniveleNegatif,
+        profilAltitudeJson: profilJson,
       ));
     }
 
