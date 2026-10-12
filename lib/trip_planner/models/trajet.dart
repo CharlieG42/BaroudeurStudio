@@ -49,6 +49,14 @@ class Trajet {
   final String? heureDepart; // format 'HH:mm'
   final String? heureArrivee; // format 'HH:mm'
   final String notes;
+  // Denivele cumule du trace (metres), calcule via le service
+  // d'elevation une fois l'itineraire obtenu.
+  final int denivelePositifM;
+  final int deniveleNegatifM;
+  // JSON: liste de couples [distance_cumulee_km, altitude_m] pour le
+  // graphique altitude/distance. Vide si l'elevation n'a pas encore
+  // ete recuperee (pas de reseau au moment du calcul).
+  final String profilAltitudeJson;
 
   Trajet({
     this.id,

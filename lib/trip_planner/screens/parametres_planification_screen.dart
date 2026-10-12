@@ -180,8 +180,8 @@ class _ParametresPlanificationScreenState
             ),
             const SizedBox(height: 8),
             Text(
-              'Les preferences s\'appliquent au prochain recalcul des '
-              'trajets (bouton \"Recalculer les trajets\").',
+              "Les preferences s'appliquent au prochain recalcul des "
+              'trajets (bouton "Recalculer les trajets").',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

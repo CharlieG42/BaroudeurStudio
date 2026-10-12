@@ -469,7 +469,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   builder: (_) => const ParametresPlanificationScreen(),
                 ),
               );
-              if (changed == true) {
+              if (changed == true && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
@@ -1343,7 +1343,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   } else {
                     _modifierTransfert(etape, etapeSuivante);
                   }
-                }
+                },
                 onLongPress: () => _modifierTransfert(etape, etapeSuivante),
                 child: Padding(
                   padding: const EdgeInsets.only(

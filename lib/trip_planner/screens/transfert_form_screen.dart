@@ -123,6 +123,7 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
       // choisi (OSRM, ou BRouter pour le VTT), pour un retour visuel des
       // l'enregistrement plutot que d'attendre le prochain
       // "Recalculer les trajets".
+      final parametres = await db.getParametres();
       final resultat = _mode == ModeTransport.vtt
           ? await _brouterService.calculerItineraireVtt(
               latDepart: widget.etapeDepart.latitude,
@@ -136,17 +137,52 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
               lonDepart: widget.etapeDepart.longitude,
               latArrivee: widget.etapeArrivee.latitude,
               lonArrivee: widget.etapeArrivee.longitude,
+              eviterAutoroutes: parametres.eviterAutoroutes,
+              eviterPeages: parametres.eviterPeages,
             );
 
       if (resultat != null) {
+        // Correction de la duree selon les vitesses moyennes de
+        // l'utilisateur (voir TripCalculationService).
+        var dureeMinutes = resultat.dureeMinutes;
+        if (_mode == ModeTransport.marche &&
+            parametres.vitesseMarcheKmh > 0) {
+          dureeMinutes =
+              (resultat.distanceKm / parametres.vitesseMarcheKmh * 60)
+                  .round();
+        } else if (_mode == ModeTransport.velo &&
+            parametres.vitesseVeloKmh > 0) {
+          dureeMinutes =
+              (resultat.distanceKm / parametres.vitesseVeloKmh * 60)
+                  .round();
+        }
+
+        // Denivele et profil d'altitude (best effort, comme dans le
+        // recalcul complet).
+        var denivelePositif = 0;
+        var deniveleNegatif = 0;
+        var profilJson = '[]';
+        if (resultat.points.isNotEmpty) {
+          final profil =
+              await _elevationService.calculerProfil(resultat.points);
+          if (profil != null) {
+            denivelePositif = profil.denivelePositifM;
+            deniveleNegatif = profil.deniveleNegatifM;
+            profilJson = jsonEncode(profil.toList());
+          }
+        }
+
         await db.upsertTrajet(Trajet(
           voyageId: widget.voyageId,
           etapeDepartId: widget.etapeDepart.id!,
           etapeArriveeId: widget.etapeArrivee.id!,
           mode: _mode,
           distanceKm: resultat.distanceKm,
-          dureeMinutes: resultat.dureeMinutes,
+          dureeMinutes: dureeMinutes,
           geometrieJson: Trajet.encodePoints(resultat.points),
+          denivelePositifM: denivelePositif,
+          deniveleNegatifM: deniveleNegatif,
+          profilAltitudeJson: profilJson,
         ));
       } else if (widget.trajetExistant?.id != null) {
         // Echec du calcul (reseau...) : on retire l'ancien trajet plutot

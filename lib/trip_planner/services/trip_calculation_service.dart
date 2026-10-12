@@ -111,11 +111,43 @@ class TripCalculationService {
               lonDepart: depart.longitude,
               latArrivee: arrivee.latitude,
               lonArrivee: arrivee.longitude,
+              eviterAutoroutes: parametres.eviterAutoroutes,
+              eviterPeages: parametres.eviterPeages,
             );
 
       if (resultat == null) {
         echecs++;
         continue;
+      }
+
+      // Correction de la duree selon les vitesses moyennes de
+      // l'utilisateur : les profils de routage supposent un terrain
+      // plat et un rythme soutenu ; un randonneur en montagne ou un
+      // cyclotouriste charge est plus lent.
+      var dureeMinutes = resultat.dureeMinutes;
+      if (mode == ModeTransport.marche &&
+          parametres.vitesseMarcheKmh > 0) {
+        dureeMinutes =
+            (resultat.distanceKm / parametres.vitesseMarcheKmh * 60)
+                .round();
+      } else if (mode == ModeTransport.velo &&
+          parametres.vitesseVeloKmh > 0) {
+        dureeMinutes =
+            (resultat.distanceKm / parametres.vitesseVeloKmh * 60).round();
+      }
+
+      // Denivele et profil d'altitude du trace (best effort : sans
+      // reseau, le trajet reste exploitable, simplement sans profil).
+      var denivelePositif = 0;
+      var deniveleNegatif = 0;
+      var profilJson = '[]';
+      if (resultat.points.isNotEmpty) {
+        final profil = await _elevation.calculerProfil(resultat.points);
+        if (profil != null) {
+          denivelePositif = profil.denivelePositifM;
+          deniveleNegatif = profil.deniveleNegatifM;
+          profilJson = jsonEncode(profil.toList());
+        }
       }
 
       await _db.upsertTrajet(Trajet(
@@ -124,8 +156,11 @@ class TripCalculationService {
         etapeArriveeId: arrivee.id!,
         mode: mode,
         distanceKm: resultat.distanceKm,
-        dureeMinutes: resultat.dureeMinutes,
+        dureeMinutes: dureeMinutes,
         geometrieJson: Trajet.encodePoints(resultat.points),
+        denivelePositifM: denivelePositif,
+        deniveleNegatifM: deniveleNegatif,
+        profilAltitudeJson: profilJson,
       ));
     }
 
