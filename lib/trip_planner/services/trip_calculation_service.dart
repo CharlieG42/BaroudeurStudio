@@ -3,7 +3,6 @@ import 'dart:convert';
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
-import '../models/parametres_planification.dart';
 import 'brouter_service.dart';
 import 'elevation_service.dart';
 import 'osrm_service.dart';
