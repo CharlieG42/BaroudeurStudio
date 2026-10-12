@@ -80,10 +80,35 @@ class WaypointSuggestionService {
   /// Nombre de centres vises pour le filtre `around` autour du trace.
   static const int _cibleCentres = 50;
 
-  /// Categories OSM interessees, regroupees par cle : la cle et la
-  /// valeur sont envoyees a Overpass sous forme de regex (une seule
-  /// clause), et servent aussi a retrouver la categorie d'un POI
-  /// retourne pour l'affichage.
+  /// Categories OSM interessees, regroupees par libelle de groupe
+  /// affiche a l'utilisateur. La cle OSM et la valeur sont envoyees a
+  /// Overpass sous forme de regex (une seule clause par requete),
+  /// et servent aussi a retrouver la categorie d'un POI retourne
+  /// pour l'affichage.
+  static const Map<String, Map<String, String>> categoriesParGroupe = {
+    'Sites et points de vue': {
+      'tourism': 'attraction|viewpoint|artwork',
+      'natural': 'peak|waterfall|beach',
+      'historic': 'monument|castle|ruins',
+    },
+    'Randonnee': {
+      'tourism': 'alpine_hut|wilderness_hut',
+      'amenity': 'shelter',
+      'leisure': 'picnic_site|camp_site',
+    },
+    'Ravitaillement': {
+      'amenity': 'drinking_water|water_point',
+      'natural': 'spring',
+      'shop': 'bakery|supermarket|convenience',
+    },
+    'Pratique': {
+      'amenity': 'fuel|pharmacy|hospital|toilets|parking',
+      'tourism': 'guest_house|hostel|hotel|motel',
+    },
+  };
+
+  /// Categories par cle utilisees par defaut (compatibilite avec les
+  /// appels existants) : sites et points de vue.
   static const Map<String, String> _categoriesParCle = {
     'tourism': 'attraction|viewpoint|artwork',
     'natural': 'peak|waterfall|beach',
@@ -98,7 +123,9 @@ class WaypointSuggestionService {
   Future<List<PoiSuggere>> suggererWaypoints({
     required List<List<double>> trace,
     required int rayonMetres,
+    Map<String, String>? categoriesParCle,
   }) async {
+    final categories = categoriesParCle ?? _categoriesParCle;
     final centres = _echantillonnerTrace(trace, rayonMetres);
     if (centres.isEmpty) {
       throw SuggestionWaypointException(
@@ -112,13 +139,17 @@ class WaypointSuggestionService {
     // "around" cible chaque centre du trace. On ne garde que les POI
     // nommes : un POI sans nom n'est pas exploitable comme
     // suggestion affichable.
-    final valeurs = _categoriesParCle.values.join('|');
+    final cles = categories.keys.toList().join('|');
+    final valeurs = categories.values
+        .expand((v) => v.split('|'))
+        .toSet()
+        .join('|');
     final centresListe = centres
         .map((p) => '${p[0].toStringAsFixed(5)},${p[1].toStringAsFixed(5)}')
         .join(',');
     final requete = '[out:json][timeout:60];'
         'nwr["name"]'
-        '[~"^(tourism|natural|historic)\$"~"^($valeurs)\$"]'
+        '[~"^($cles)\$"~"^($valeurs)\$"]'
         '(around:$rayonMetres,$centresListe);'
         'out center $maxSuggestions;';
 
@@ -316,10 +347,15 @@ class WaypointSuggestionService {
   /// Premiere categorie OSM du POI qui correspond a une categorie
   /// connue, sous la forme 'cle=valeur' (ex: 'natural=waterfall').
   String _categoriePrincipale(Map<String, dynamic> tags) {
-    for (final entree in _categoriesParCle.entries) {
-      final valeurs = entree.value.split('|');
-      for (final valeur in valeurs) {
-        if (tags[entree.key] == valeur) return '${entree.key}=$valeur';
+    // Parcourt tous les groupes du catalogue : un POI 'Randonnee'
+    // (refuge) doit retrouver sa categorie meme si la requete n'a
+    // porte que sur les categories par defaut, et inversement.
+    for (final groupe in categoriesParGroupe.values) {
+      for (final entree in groupe.entries) {
+        final valeurs = entree.value.split('|');
+        for (final valeur in valeurs) {
+          if (tags[entree.key] == valeur) return '${entree.key}=$valeur';
+        }
       }
     }
     return '';
@@ -345,6 +381,46 @@ class WaypointSuggestionService {
         return 'Chateau';
       case 'historic=ruins':
         return 'Ruines';
+      case 'tourism=alpine_hut':
+        return 'Refuge';
+      case 'tourism=wilderness_hut':
+        return 'Cabane';
+      case 'amenity=shelter':
+        return 'Abri';
+      case 'leisure=picnic_site':
+        return 'Aire de pique-nique';
+      case 'leisure=camp_site':
+        return 'Camping';
+      case 'amenity=drinking_water':
+        return 'Point d\'eau';
+      case 'amenity=water_point':
+        return 'Point d\'eau';
+      case 'natural=spring':
+        return 'Source';
+      case 'shop=bakery':
+        return 'Boulangerie';
+      case 'shop=supermarket':
+        return 'Supermarche';
+      case 'shop=convenience':
+        return 'Epicerie';
+      case 'amenity=fuel':
+        return 'Station-service';
+      case 'amenity=pharmacy':
+        return 'Pharmacie';
+      case 'amenity=hospital':
+        return 'Hopital';
+      case 'amenity=toilets':
+        return 'Toilettes';
+      case 'amenity=parking':
+        return 'Parking';
+      case 'tourism=guest_house':
+        return 'Chambre d\'hote';
+      case 'tourism=hostel':
+        return 'Auberge';
+      case 'tourism=hotel':
+        return 'Hotel';
+      case 'tourism=motel':
+        return 'Motel';
       default:
         return 'Point d\'interet';
     }

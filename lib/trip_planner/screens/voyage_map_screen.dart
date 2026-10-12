@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -13,6 +14,7 @@ import '../models/waypoint.dart';
 import '../services/nominatim_service.dart';
 import '../services/trip_calculation_service.dart';
 import '../services/geolocalisation_service.dart';
+import '../services/tuiles_hors_ligne_service.dart';
 import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
 import '../widgets/profil_altitude_chart.dart';
@@ -61,6 +63,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   // carte cree un waypoint personnel (epingle libre) au lieu d'ouvrir
   // la fiche d'ajout d'etape (qui reste accessible via appui long).
   bool _modeAjoutWaypoint = false;
+  // Telechargement de zone hors ligne : progression affichee dans un
+  // dialogue, annulable a tout moment.
+  bool _chargementTuiles = false;
+  int _tuilesTelechargees = 0;
+  int _tuilesTotal = 0;
+  bool _annulerTuiles = false;
 
   final WaypointSuggestionService _suggestionService =
       WaypointSuggestionService();
@@ -197,7 +205,224 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   /// personnels ne sont jamais touches. Sans trace routier (trajets
   /// non calcules ou mode manuel), on retombe sur une ligne brisee
   /// entre etapes consecutives.
-  Future<void> _chargerSuggestionsWaypoints() async {
+  /// Pre-telecharge les tuiles de la zone visible pour un usage
+  /// hors ligne : l'utilisateur choisit la plage de zooms (la zone est
+  /// la vue actuelle de la carte), puis les tuiles sont enregistrees
+  /// localement et servies par TuilesHorsLigneTileProvider. Le GPS
+  /// fonctionne deja sans reseau ; seuls les fonds de carte
+  /// necessitaient ce pre-chargement.
+  Future<void> _afficherDialogueZoneHorsLigne() async {
+    if (_chargementTuiles) return;
+    final bounds = _mapController.camera.visibleBounds;
+    final zone = ZoneTuiles(
+      sud: bounds.south,
+      ouest: bounds.west,
+      nord: bounds.north,
+      est: bounds.east,
+    );
+    var zoomMin = (_mapController.camera.zoom.floor() - 2).clamp(8, 16).toInt();
+    var zoomMax = (_mapController.camera.zoom.floor() + 2).clamp(10, 17).toInt();
+
+    final lancer = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Zone hors ligne'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enregistre sur ton appareil les fonds de carte de la '
+                'zone actuellement visible, pour les consulter sans '
+                'reseau. Le GPS continue de fonctionner hors ligne.',
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: zoomMin,
+                decoration: const InputDecoration(
+                  labelText: 'Zoom minimum',
+                ),
+                items: [
+                  for (var z = 8; z <= 15; z++)
+                    DropdownMenuItem(value: z, child: Text('Zoom $z')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setDialogState(() {
+                      zoomMin = v;
+                      if (zoomMax < zoomMin) zoomMax = zoomMin;
+                    });
+                  }
+                },
+              ),
+              DropdownButtonFormField<int>(
+                value: zoomMax,
+                decoration: const InputDecoration(
+                  labelText: 'Zoom maximum',
+                ),
+                items: [
+                  for (var z = 10; z <= 17; z++)
+                    DropdownMenuItem(value: z, child: Text('Zoom $z')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setDialogState(() {
+                      zoomMax = v;
+                      if (zoomMin > zoomMax) zoomMin = zoomMax;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<int>(
+                future: tailleStockageTuiles(),
+                builder: (context, snapshot) {
+                  final octets = snapshot.data ?? 0;
+                  return Text(
+                    'Stockage hors ligne actuel : '
+                    '${(octets / 1024 / 1024).toStringAsFixed(1)} Mo',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await viderStockageTuiles();
+                if (context.mounted) {
+                  Navigator.pop(context, false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Stockage hors ligne vide.'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Vider le stockage'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Telecharger'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (lancer != true) return;
+    await _telechargerZone(zone, zoomMin, zoomMax);
+  }
+
+  Future<void> _telechargerZone(
+    ZoneTuiles zone,
+    int zoomMin,
+    int zoomMax,
+  ) async {
+    setState(() {
+      _chargementTuiles = true;
+      _annulerTuiles = false;
+      _tuilesTelechargees = 0;
+      _tuilesTotal = TuilesHorsLigneService.compterTuiles(
+        zone,
+        zoomMin,
+        zoomMax,
+      );
+    });
+    final resultat = await TuilesHorsLigneService.telecharger(
+      zone: zone,
+      zoomMin: zoomMin,
+      zoomMax: zoomMax,
+      urlTemplate: _urlTuilesPour(_fondCarte),
+      nomFond: _fondCarte.name,
+      onProgression: (fait, total) {
+        if (mounted) {
+          setState(() {
+            _tuilesTelechargees = fait;
+            _tuilesTotal = total;
+          });
+        }
+      },
+      doitAnnuler: () => _annulerTuiles,
+    );
+    if (!mounted) return;
+    setState(() => _chargementTuiles = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _annulerTuiles
+              ? 'Telechargement annule '
+                  '(${resultat.reussies}/${resultat.total} tuiles).'
+              : 'Zone hors ligne prete : ${resultat.reussies} tuiles '
+                  'enregistrees'
+                  '${resultat.echecs > 0 ? ', ${resultat.echecs} echecs' : ''}.',
+        ),
+      ),
+    );
+  }
+
+  /// Ouvre un dialogue de selection des groupes de categories de POI
+  /// (sites, randonnee, ravitaillement, pratique) avant de lancer la
+  /// recherche Overpass. Plusieurs groupes peuvent etre cumules.
+  Future<void> _choisirCategoriesEtCharger() async {
+    final groupes = WaypointSuggestionService.categoriesParGroupe;
+    final selectionnes = <String>{...groupes.keys};
+    final lancer = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Categories de POI'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: groupes.keys
+                .map(
+                  (groupe) => CheckboxListTile(
+                    value: selectionnes.contains(groupe),
+                    onChanged: (coche) {
+                      setDialogState(() {
+                        if (coche == true) {
+                          selectionnes.add(groupe);
+                        } else {
+                          selectionnes.remove(groupe);
+                        }
+                      });
+                    },
+                    title: Text(groupe),
+                    dense: true,
+                  ),
+                )
+                .toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: selectionnes.isEmpty
+                  ? null
+                  : () => Navigator.pop(context, true),
+              child: const Text('Rechercher'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (lancer != true) return;
+    final categories = <String, String>{};
+    for (final groupe in selectionnes) {
+      categories.addAll(groupes[groupe]!);
+    }
+    await _chargerSuggestionsWaypoints(categoriesParCle: categories);
+  }
+
+  Future<void> _chargerSuggestionsWaypoints({
+    Map<String, String>? categoriesParCle,
+  }) async {
     if (widget.voyage.id == null || _chargementSuggestions) return;
     final trace = <List<double>>[];
     for (final trajet in _trajets) {
@@ -219,8 +444,13 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       final suggestions = await _suggestionService.suggererWaypoints(
         trace: trace,
         rayonMetres: 3000,
+        categoriesParCle: categoriesParCle,
       );
       final db = TripPlannerDatabase.instance;
+      // Seule une nouvelle recherche remplace les recommandations
+      // existantes ; les waypoints personnels ne sont jamais touches
+      // (deleteWaypointsRecommandesForVoyage ne cible que la source
+      // 'recommande').
       await db.deleteWaypointsRecommandesForVoyage(widget.voyage.id!);
       for (final suggestion in suggestions) {
         await db.insertWaypoint(suggestion.toWaypoint(widget.voyage.id!));
@@ -540,8 +770,17 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   )
                 : const Icon(Icons.recommend_outlined),
             tooltip: 'Suggerer des waypoints autour du trace',
-            onPressed:
-                _chargementSuggestions ? null : _chargerSuggestionsWaypoints,
+            onPressed: _chargementSuggestions
+                ? null
+                : _choisirCategoriesEtCharger,
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.list_alt,
+              color: _waypoints.isEmpty ? null : Colors.amber.shade800,
+            ),
+            tooltip: 'Liste des waypoints',
+            onPressed: _waypoints.isEmpty ? null : _afficherListeWaypoints,
           ),
           IconButton(
             icon: Icon(
@@ -565,6 +804,27 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 );
               }
             },
+          ),
+          IconButton(
+            icon: _chargementTuiles
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                      value: _tuilesTotal > 0
+                          ? _tuilesTelechargees / _tuilesTotal
+                          : null,
+                    ),
+                  )
+                : const Icon(Icons.download_for_offline_outlined),
+            tooltip: _chargementTuiles
+                ? 'Telechargement : $_tuilesTelechargees/$_tuilesTotal tuiles'
+                : 'Enregistrer la zone pour un usage hors ligne',
+            onPressed: _chargementTuiles
+                ? () => setState(() => _annulerTuiles = true)
+                : _afficherDialogueZoneHorsLigne,
           ),
           PopupMenuButton<ModeAffichage>(
             tooltip: 'Disposition de l\'ecran',
@@ -784,9 +1044,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 urlTemplate: _urlTuilesPour(_fondCarte),
                 userAgentPackageName: 'com.baroudeurs.studio',
                 maxZoom: 19,
-                tileProvider: NetworkTileProvider(
-                  cachingProvider:
-                      BuiltInMapCachingProvider.getOrCreateInstance(),
+                tileProvider: TuilesHorsLigneTileProvider(
+                  nomFond: _fondCarte.name,
                 ),
               ),
               if (_afficherSentiers)
@@ -1090,6 +1349,118 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     );
   }
 
+  /// Liste de tous les waypoints du voyage, tries par distance au
+  /// trace : resout le cas des POI hors du champ de la caméra, et
+  /// donne un acces rapide au detail, au recentrage et a la
+  /// conversion en etape.
+  void _afficherListeWaypoints() {
+    final trace = <List<double>>[];
+    for (final trajet in _trajets) {
+      final points = trajet.points.isNotEmpty
+          ? trajet.points
+          : _pointsEtapesPour(trajet)
+              .map((p) => [p.latitude, p.longitude])
+              .toList();
+      trace.addAll(points);
+    }
+    if (trace.isEmpty) {
+      for (final etape in _etapes) {
+        trace.add([etape.latitude, etape.longitude]);
+      }
+    }
+    final tries = _waypoints.toList()
+      ..sort((a, b) {
+        final da = _distanceAuTrace(a.latitude, a.longitude, trace);
+        final db = _distanceAuTrace(b.latitude, b.longitude, trace);
+        return da.compareTo(db);
+      });
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        builder: (context, scrollController) => ListView.builder(
+          controller: scrollController,
+          itemCount: tries.length,
+          itemBuilder: (context, index) {
+            final waypoint = tries[index];
+            final distance =
+                _distanceAuTrace(waypoint.latitude, waypoint.longitude, trace);
+            return ListTile(
+              leading: Icon(
+                waypoint.estPersonnel
+                    ? Icons.push_pin
+                    : Icons.thumb_up,
+                size: 20,
+                color: waypoint.estPersonnel
+                    ? Colors.red.shade700
+                    : Colors.amber.shade800,
+              ),
+              title: Text(waypoint.nom),
+              subtitle: Text(
+                '${_libelleCategorieWaypoint(waypoint.categorie)}'
+                '${distance >= 0 ? ' · ${_formatDistance(distance)} du trace' : ''}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(context);
+                _mapController.move(
+                  LatLng(waypoint.latitude, waypoint.longitude),
+                  14,
+                );
+                _afficherDetailWaypoint(waypoint);
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Distance approchee (metres) d'un point au trace, -1 si aucun
+  /// trace disponible.
+  double _distanceAuTrace(
+    double lat,
+    double lon,
+    List<List<double>> trace,
+  ) {
+    if (trace.isEmpty) return -1;
+    var min = double.infinity;
+    for (final p in trace) {
+      final d = _distanceMetres(lat, lon, p[0], p[1]);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
+  /// Distance en metres entre deux points lat/lon (haversine),
+  /// suffisante pour un tri de proximite.
+  double _distanceMetres(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const rayonTerreM = 6371000.0;
+    final dLat = _degVersRad(lat2 - lat1);
+    final dLon = _degVersRad(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degVersRad(lat1)) *
+            math.cos(_degVersRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return rayonTerreM * c;
+  }
+
+  double _degVersRad(double deg) => deg * (math.pi / 180.0);
+
+  String _formatDistance(double metres) {
+    if (metres < 1000) return '${metres.round()} m';
+    return '${(metres / 1000).toStringAsFixed(1)} km';
+  }
+
   void _afficherDetailWaypoint(Waypoint waypoint) {
     showModalBottomSheet(
       context: context,
@@ -1191,6 +1562,45 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
         return 'chateau';
       case 'historic=ruins':
         return 'ruines';
+      case 'tourism=alpine_hut':
+        return 'refuge';
+      case 'tourism=wilderness_hut':
+        return 'cabane';
+      case 'amenity=shelter':
+        return 'abri';
+      case 'leisure=picnic_site':
+        return 'aire de pique-nique';
+      case 'leisure=camp_site':
+        return 'camping';
+      case 'amenity=drinking_water':
+      case 'amenity=water_point':
+        return 'point d\'eau';
+      case 'natural=spring':
+        return 'source';
+      case 'shop=bakery':
+        return 'boulangerie';
+      case 'shop=supermarket':
+        return 'supermarche';
+      case 'shop=convenience':
+        return 'epicerie';
+      case 'amenity=fuel':
+        return 'station-service';
+      case 'amenity=pharmacy':
+        return 'pharmacie';
+      case 'amenity=hospital':
+        return 'hopital';
+      case 'amenity=toilets':
+        return 'toilettes';
+      case 'amenity=parking':
+        return 'parking';
+      case 'tourism=guest_house':
+        return 'chambre d\'hote';
+      case 'tourism=hostel':
+        return 'auberge';
+      case 'tourism=hotel':
+        return 'hotel';
+      case 'tourism=motel':
+        return 'motel';
       case 'personnel':
         return 'personnel';
       default:
