@@ -397,6 +397,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
         return Theme.of(context).colorScheme.primary;
       case ModeTransport.velo:
         return Colors.teal;
+      case ModeTransport.vtt:
+        return Colors.deepOrange;
       case ModeTransport.marche:
         return Colors.green;
       case ModeTransport.avion:
@@ -416,6 +418,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
         return Icons.directions_car_outlined;
       case ModeTransport.velo:
         return Icons.directions_bike_outlined;
+      case ModeTransport.vtt:
+        return Icons.terrain_outlined;
       case ModeTransport.marche:
         return Icons.directions_walk_outlined;
       case ModeTransport.avion:
@@ -1373,6 +1377,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
         return 'Voiture';
       case ModeTransport.velo:
         return 'Velo';
+      case ModeTransport.vtt:
+        return 'VTT';
       case ModeTransport.marche:
         return 'Marche';
       case ModeTransport.avion:

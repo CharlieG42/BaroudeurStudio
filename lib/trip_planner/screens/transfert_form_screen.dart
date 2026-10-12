@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
+import '../services/brouter_service.dart';
 import '../services/osrm_service.dart';
 
 /// Formulaire d'edition du trajet entre deux etapes consecutives.
-/// - Modes "voiture"/"velo"/"marche" : recalcules automatiquement via
-///   OSRM (rien a saisir), chacun avec son propre profil de routage.
+/// - Modes "voiture"/"velo"/"vtt"/"marche" : recalcules automatiquement
+///   (rien a saisir), chacun avec son propre profil de routage :
+///   OSRM pour voiture/velo/marche, BRouter (profil mtb) pour le VTT.
 /// - Modes "avion"/"train"/"bus"/"autre" : saisie manuelle
 ///   (transporteur, lieux, heures), jamais ecrases par le recalcul
 ///   automatique.
@@ -36,6 +38,7 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
   final _lieuArriveeController = TextEditingController();
   final _notesController = TextEditingController();
   final _osrmService = OsrmService();
+  final _brouterService = BrouterService();
   TimeOfDay? _heureDepart;
   TimeOfDay? _heureArrivee;
   bool _enregistrement = false;
@@ -112,16 +115,24 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
     final db = TripPlannerDatabase.instance;
 
     if (_mode.estAutoCalcule) {
-      // Calcule immediatement via OSRM avec le profil du mode choisi,
-      // pour un retour visuel des l'enregistrement plutot que d'attendre
-      // le prochain "Recalculer les trajets".
-      final resultat = await _osrmService.calculerItineraire(
-        mode: _mode,
-        latDepart: widget.etapeDepart.latitude,
-        lonDepart: widget.etapeDepart.longitude,
-        latArrivee: widget.etapeArrivee.latitude,
-        lonArrivee: widget.etapeArrivee.longitude,
-      );
+      // Calcule immediatement avec le profil correspondant au mode
+      // choisi (OSRM, ou BRouter pour le VTT), pour un retour visuel des
+      // l'enregistrement plutot que d'attendre le prochain
+      // "Recalculer les trajets".
+      final resultat = _mode == ModeTransport.vtt
+          ? await _brouterService.calculerItineraireVtt(
+              latDepart: widget.etapeDepart.latitude,
+              lonDepart: widget.etapeDepart.longitude,
+              latArrivee: widget.etapeArrivee.latitude,
+              lonArrivee: widget.etapeArrivee.longitude,
+            )
+          : await _osrmService.calculerItineraire(
+              mode: _mode,
+              latDepart: widget.etapeDepart.latitude,
+              lonDepart: widget.etapeDepart.longitude,
+              latArrivee: widget.etapeArrivee.latitude,
+              lonArrivee: widget.etapeArrivee.longitude,
+            );
 
       if (resultat != null) {
         await db.upsertTrajet(Trajet(
@@ -170,6 +181,8 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
         return 'Voiture';
       case ModeTransport.velo:
         return 'Velo';
+      case ModeTransport.vtt:
+        return 'VTT';
       case ModeTransport.marche:
         return 'Marche';
       case ModeTransport.avion:
@@ -189,6 +202,8 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
         return Icons.directions_car_outlined;
       case ModeTransport.velo:
         return Icons.directions_bike_outlined;
+      case ModeTransport.vtt:
+        return Icons.terrain_outlined;
       case ModeTransport.marche:
         return Icons.directions_walk_outlined;
       case ModeTransport.avion:

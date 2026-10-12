@@ -1,6 +1,7 @@
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
+import 'brouter_service.dart';
 import 'osrm_service.dart';
 
 /// Orchestre le recalcul des trajets entre etapes consecutives d'un
@@ -9,21 +10,25 @@ import 'osrm_service.dart';
 ///
 /// Pour chaque paire d'etapes consecutives, le mode de transport deja
 /// choisi est respecte : voiture/velo/marche sont recalcules via OSRM
-/// (avec le profil correspondant), tandis qu'avion/train/bus/autre,
-/// saisis manuellement par l'utilisateur (voir [ModeTransportInfo]),
+/// (avec le profil correspondant) et le vtt via BRouter (profil mtb),
+/// tandis qu'avion/train/bus/autre, saisis manuellement par
+/// l'utilisateur (voir [ModeTransportInfo]),
 /// ne sont jamais recalcules ni ecrases. Une paire sans trajet existant
 /// est calculee par defaut en voiture.
 class TripCalculationService {
   final OsrmService _osrm;
+  final BrouterService _brouter;
   final TripPlannerDatabase _db;
 
   TripCalculationService({
     OsrmService? osrmService,
+    BrouterService? brouterService,
     TripPlannerDatabase? database,
   })  : _osrm = osrmService ?? OsrmService(),
+        _brouter = brouterService ?? BrouterService(osrmService: osrmService),
         _db = database ?? TripPlannerDatabase.instance;
 
-  /// Recalcule les trajets auto-calcules (voiture/velo/marche) du
+  /// Recalcule les trajets auto-calcules (voiture/velo/vtt/marche) du
   /// voyage a partir de ses etapes, dans l'ordre, en conservant le
   /// mode deja choisi pour chaque paire. Les trajets manuels
   /// (avion/train/bus/autre) sont conserves tant que leur paire
@@ -85,13 +90,20 @@ class TripCalculationService {
         continue; // transfert manuel : on ne touche pas.
       }
 
-      final resultat = await _osrm.calculerItineraire(
-        mode: mode,
-        latDepart: depart.latitude,
-        lonDepart: depart.longitude,
-        latArrivee: arrivee.latitude,
-        lonArrivee: arrivee.longitude,
-      );
+      final resultat = mode == ModeTransport.vtt
+          ? await _brouter.calculerItineraireVtt(
+              latDepart: depart.latitude,
+              lonDepart: depart.longitude,
+              latArrivee: arrivee.latitude,
+              lonArrivee: arrivee.longitude,
+            )
+          : await _osrm.calculerItineraire(
+              mode: mode,
+              latDepart: depart.latitude,
+              lonDepart: depart.longitude,
+              latArrivee: arrivee.latitude,
+              lonArrivee: arrivee.longitude,
+            );
 
       if (resultat == null) {
         echecs++;
