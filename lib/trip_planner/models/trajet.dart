@@ -5,15 +5,16 @@ import 'dart:convert';
 /// OSRM (un profil de routage different pour chacun) ; les autres
 /// modes ([avion], [train], [bus], [autre]) sont saisis manuellement
 /// par l'utilisateur.
-enum ModeTransport { voiture, velo, marche, avion, train, bus, autre }
+enum ModeTransport { voiture, velo, vtt, marche, avion, train, bus, autre }
 
 extension ModeTransportInfo on ModeTransport {
   /// Vrai pour les modes dont le trajet est calcule automatiquement
-  /// par un service de routage (OSRM), faux pour les modes saisis
-  /// manuellement (vol, train, bus, autre).
+  /// par un service de routage (OSRM, BRouter pour le VTT), faux pour
+  /// les modes saisis manuellement (vol, train, bus, autre).
   bool get estAutoCalcule =>
       this == ModeTransport.voiture ||
       this == ModeTransport.velo ||
+      this == ModeTransport.vtt ||
       this == ModeTransport.marche;
 }
 

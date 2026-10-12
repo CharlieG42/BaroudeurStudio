@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
 import '../models/trajet.dart';
 
 /// Resultat d'un calcul d'itineraire : distance, duree estimee et
@@ -19,30 +18,35 @@ class ResultatItineraire {
 
 /// Client pour l'API de routage OSRM (Open Source Routing Machine).
 ///
-/// Utilise par defaut le serveur de demonstration public
-/// (router.project-osrm.org), mis a disposition gracieusement par le
-/// projet OSRM/FOSSGIS pour un usage raisonnable et non commercial
-/// (voir https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy).
-/// Ce serveur expose trois profils : voiture, velo et marche. Pour un
-/// usage intensif ou une distribution large de l'application, il est
-/// recommande d'heberger sa propre instance OSRM et de changer
-/// [baseUrl] ci-dessous.
+/// Utilise le serveur public de la FOSSGIS (routing.openstreetmap.de),
+/// qui met a disposition trois instances avec de vrais profils :
+/// voiture (routed-car), velo (routed-bike) et marche (routed-foot).
+///
+/// Attention : l'ancien serveur de demonstration router.project-osrm.org
+/// ne servait en realite que le profil voiture ; les prefixes /bike et
+/// /foot de l'URL etaient ignores et renvoyaient exactement la meme
+/// route et la meme duree que la voiture (probleme connu du serveur de
+/// demo). C'est pourquoi ce service interroge desormais la FOSSGIS :
+/// chaque mode a son propre graphe de routage (la marche emprunte les
+/// chemins et sentiers, le velo les pistes cyclables).
+///
+/// Pour un usage intensif ou une distribution large de l'application,
+/// il est recommande d'heberger sa propre instance OSRM et de changer
+/// les constantes ci-dessous.
 class OsrmService {
-  static const String baseUrl = 'https://router.project-osrm.org';
+  /// Squelette d'URL par profil de routage (le {profil} et les
+  /// coordonnees sont inseres au moment de la requete).
+  static const String baseUrlPattern =
+      'https://routing.openstreetmap.de/routed-{profil}/route/v1/driving';
 
-  /// User-Agent obligatoire pour respecter la politique d'usage du
-  /// serveur de demonstration OSRM.
-  static const Map<String, String> _headers = {
-    'User-Agent': 'BaroudeurStudio-TripPlanner/1.0 (usage personnel)',
-  };
-
-  /// Nom du profil OSRM correspondant au mode de transport. Ne
+  /// Instance FOSSGIS correspondant au mode de transport. Ne
   /// s'applique qu'aux modes auto-calcules (voir [ModeTransportInfo]).
-  String _profil(ModeTransport mode) {
+  String _instance(ModeTransport mode) {
     switch (mode) {
       case ModeTransport.voiture:
-        return 'driving';
+        return 'car';
       case ModeTransport.velo:
+      case ModeTransport.vtt:
         return 'bike';
       case ModeTransport.marche:
         return 'foot';
@@ -67,30 +71,26 @@ class OsrmService {
     required double lonArrivee,
   }) async {
     final coords = '$lonDepart,$latDepart;$lonArrivee,$latArrivee';
+    final url = baseUrlPattern.replaceFirst('{profil}', _instance(mode));
     final uri = Uri.parse(
-      '$baseUrl/route/v1/${_profil(mode)}/$coords'
+      '$url/$coords'
       '?overview=full&geometries=geojson&alternatives=false&steps=false',
     );
-
     try {
       final response = await http
-          .get(uri, headers: _headers)
+          .get(uri)
           .timeout(const Duration(seconds: 15));
-
       if (response.statusCode != 200) return null;
-
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['code'] != 'Ok') return null;
-
       final routes = data['routes'] as List<dynamic>;
       if (routes.isEmpty) return null;
-
       final route = routes.first as Map<String, dynamic>;
       final distanceMetres = (route['distance'] as num).toDouble();
       final dureeSecondes = (route['duration'] as num).toDouble();
-
       final geometry = route['geometry'] as Map<String, dynamic>;
       final coordinates = geometry['coordinates'] as List<dynamic>;
+
       // GeoJSON fournit les coordonnees en [lon, lat] : on les remet
       // dans l'ordre [lat, lon] utilise partout ailleurs dans le module.
       final points = coordinates
