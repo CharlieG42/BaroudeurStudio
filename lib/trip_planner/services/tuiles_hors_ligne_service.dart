@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -80,8 +81,8 @@ class TuilesHorsLigneService {
     int y,
     List<int> bytes,
   ) async {
-    final racine = await racine();
-    final fichier = File(p.join(racine, nomFond, '$z', '$x', '$y'));
+    final dossierRacine = await racine();
+    final fichier = File(p.join(dossierRacine, nomFond, '$z', '$x', '$y'));
     await fichier.parent.create(recursive: true);
     await fichier.writeAsBytes(bytes, flush: true);
   }
@@ -215,10 +216,10 @@ class TuilesHorsLigneTileProvider extends NetworkTileProvider {
 /// Taille occupee par les tuiles pre-telechargees (octets), pour
 /// l'affichage dans l'interface de gestion.
 Future<int> tailleStockageTuiles() async {
-  final racine = Directory(await TuilesHorsLigneService.racine());
-  if (!await racine.exists()) return 0;
+  final dossier = Directory(await TuilesHorsLigneService.racine());
+  if (!await dossier.exists()) return 0;
   var total = 0;
-  await for (final entite in racine.list(recursive: true)) {
+  await for (final entite in dossier.list(recursive: true)) {
     if (entite is File) {
       total += await entite.length();
     }
@@ -228,8 +229,8 @@ Future<int> tailleStockageTuiles() async {
 
 /// Supprime toutes les tuiles pre-telechargees.
 Future<void> viderStockageTuiles() async {
-  final racine = Directory(await TuilesHorsLigneService.racine());
-  if (await racine.exists()) {
-    await racine.delete(recursive: true);
+  final dossier = Directory(await TuilesHorsLigneService.racine());
+  if (await dossier.exists()) {
+    await dossier.delete(recursive: true);
   }
 }
