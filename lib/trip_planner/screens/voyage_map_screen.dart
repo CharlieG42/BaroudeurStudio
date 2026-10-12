@@ -14,6 +14,7 @@ import '../models/waypoint.dart';
 import '../services/nominatim_service.dart';
 import '../services/trip_calculation_service.dart';
 import '../services/geolocalisation_service.dart';
+import '../services/tuiles_hors_ligne_service.dart';
 import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
 import '../widgets/profil_altitude_chart.dart';
@@ -62,6 +63,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   // carte cree un waypoint personnel (epingle libre) au lieu d'ouvrir
   // la fiche d'ajout d'etape (qui reste accessible via appui long).
   bool _modeAjoutWaypoint = false;
+  // Telechargement de zone hors ligne : progression affichee dans un
+  // dialogue, annulable a tout moment.
+  bool _chargementTuiles = false;
+  int _tuilesTelechargees = 0;
+  int _tuilesTotal = 0;
+  bool _annulerTuiles = false;
 
   final WaypointSuggestionService _suggestionService =
       WaypointSuggestionService();
@@ -198,6 +205,166 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   /// personnels ne sont jamais touches. Sans trace routier (trajets
   /// non calcules ou mode manuel), on retombe sur une ligne brisee
   /// entre etapes consecutives.
+  /// Pre-telecharge les tuiles de la zone visible pour un usage
+  /// hors ligne : l'utilisateur choisit la plage de zooms (la zone est
+  /// la vue actuelle de la carte), puis les tuiles sont enregistrees
+  /// localement et servies par TuilesHorsLigneTileProvider. Le GPS
+  /// fonctionne deja sans reseau ; seuls les fonds de carte
+  /// necessitaient ce pre-chargement.
+  Future<void> _afficherDialogueZoneHorsLigne() async {
+    if (_chargementTuiles) return;
+    final bounds = _mapController.camera.visibleBounds;
+    final zone = ZoneTuiles(
+      sud: bounds.south,
+      ouest: bounds.west,
+      nord: bounds.north,
+      est: bounds.east,
+    );
+    var zoomMin = (_mapController.camera.zoom.floor() - 2).clamp(8, 16).toInt();
+    var zoomMax = (_mapController.camera.zoom.floor() + 2).clamp(10, 17).toInt();
+
+    final lancer = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Zone hors ligne'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enregistre sur ton appareil les fonds de carte de la '
+                'zone actuellement visible, pour les consulter sans '
+                'reseau. Le GPS continue de fonctionner hors ligne.',
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: zoomMin,
+                decoration: const InputDecoration(
+                  labelText: 'Zoom minimum',
+                ),
+                items: [
+                  for (var z = 8; z <= 15; z++)
+                    DropdownMenuItem(value: z, child: Text('Zoom $z')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setDialogState(() {
+                      zoomMin = v;
+                      if (zoomMax < zoomMin) zoomMax = zoomMin;
+                    });
+                  }
+                },
+              ),
+              DropdownButtonFormField<int>(
+                value: zoomMax,
+                decoration: const InputDecoration(
+                  labelText: 'Zoom maximum',
+                ),
+                items: [
+                  for (var z = 10; z <= 17; z++)
+                    DropdownMenuItem(value: z, child: Text('Zoom $z')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setDialogState(() {
+                      zoomMax = v;
+                      if (zoomMin > zoomMax) zoomMin = zoomMax;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<int>(
+                future: tailleStockageTuiles(),
+                builder: (context, snapshot) {
+                  final octets = snapshot.data ?? 0;
+                  return Text(
+                    'Stockage hors ligne actuel : '
+                    '${(octets / 1024 / 1024).toStringAsFixed(1)} Mo',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await viderStockageTuiles();
+                if (context.mounted) {
+                  Navigator.pop(context, false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Stockage hors ligne vide.'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Vider le stockage'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Telecharger'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (lancer != true) return;
+    await _telechargerZone(zone, zoomMin, zoomMax);
+  }
+
+  Future<void> _telechargerZone(
+    ZoneTuiles zone,
+    int zoomMin,
+    int zoomMax,
+  ) async {
+    setState(() {
+      _chargementTuiles = true;
+      _annulerTuiles = false;
+      _tuilesTelechargees = 0;
+      _tuilesTotal = TuilesHorsLigneService.compterTuiles(
+        zone,
+        zoomMin,
+        zoomMax,
+      );
+    });
+    final resultat = await TuilesHorsLigneService.telecharger(
+      zone: zone,
+      zoomMin: zoomMin,
+      zoomMax: zoomMax,
+      urlTemplate: _urlTuilesPour(_fondCarte),
+      nomFond: _fondCarte.name,
+      onProgression: (fait, total) {
+        if (mounted) {
+          setState(() {
+            _tuilesTelechargees = fait;
+            _tuilesTotal = total;
+          });
+        }
+      },
+      doitAnnuler: () => _annulerTuiles,
+    );
+    if (!mounted) return;
+    setState(() => _chargementTuiles = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _annulerTuiles
+              ? 'Telechargement annule '
+                  '(${resultat.reussies}/${resultat.total} tuiles).'
+              : 'Zone hors ligne prete : ${resultat.reussies} tuiles '
+                  'enregistrees'
+                  '${resultat.echecs > 0 ? ', ${resultat.echecs} echecs' : ''}.',
+        ),
+      ),
+    );
+  }
+
   /// Ouvre un dialogue de selection des groupes de categories de POI
   /// (sites, randonnee, ravitaillement, pratique) avant de lancer la
   /// recherche Overpass. Plusieurs groupes peuvent etre cumules.
@@ -620,6 +787,27 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
               }
             },
           ),
+          IconButton(
+            icon: _chargementTuiles
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                      value: _tuilesTotal > 0
+                          ? _tuilesTelechargees / _tuilesTotal
+                          : null,
+                    ),
+                  )
+                : const Icon(Icons.download_for_offline_outlined),
+            tooltip: _chargementTuiles
+                ? 'Telechargement : $_tuilesTelechargees/$_tuilesTotal tuiles'
+                : 'Enregistrer la zone pour un usage hors ligne',
+            onPressed: _chargementTuiles
+                ? () => setState(() => _annulerTuiles = true)
+                : _afficherDialogueZoneHorsLigne,
+          ),
           PopupMenuButton<ModeAffichage>(
             tooltip: 'Disposition de l\'ecran',
             icon: Icon(_iconeModeAffichage(_modeAffichage)),
@@ -838,9 +1026,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 urlTemplate: _urlTuilesPour(_fondCarte),
                 userAgentPackageName: 'com.baroudeurs.studio',
                 maxZoom: 19,
-                tileProvider: NetworkTileProvider(
-                  cachingProvider:
-                      BuiltInMapCachingProvider.getOrCreateInstance(),
+                tileProvider: TuilesHorsLigneTileProvider(
+                  nomFond: _fondCarte.name,
                 ),
               ),
               if (_afficherSentiers)
