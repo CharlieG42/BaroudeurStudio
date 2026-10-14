@@ -1689,6 +1689,15 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     final heureDepart = etape.heureDepart;
 
     final buffer = StringBuffer(dateArrivee);
+    final decalage = etape.decalageHoraireMinutes;
+    if (decalage != null) {
+      final signe = decalage >= 0 ? '+' : '-';
+      final heures = decalage.abs() / 60;
+      final texte = heures == heures.truncateToDouble()
+          ? '${heures.toInt()}h'
+          : '${heures.toStringAsFixed(1)}h'.replaceAll('.0', '');
+      buffer.write(' · UTC$signe$texte');
+    }
     if (heureArrivee != null) {
       buffer.write(' $heureArrivee');
     }
