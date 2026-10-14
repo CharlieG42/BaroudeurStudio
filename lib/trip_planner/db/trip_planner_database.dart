@@ -40,7 +40,7 @@ class TripPlannerDatabase {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -82,6 +82,14 @@ class TripPlannerDatabase {
         'trajets',
         'profil_altitude_json',
         'TEXT',
+      );
+    }
+    if (oldVersion < 6) {
+      await _addColumnIfMissing(
+        db,
+        'etapes',
+        'decalage_horaire_minutes',
+        'INTEGER',
       );
     }
   }
@@ -171,6 +179,7 @@ class TripPlannerDatabase {
         heure_arrivee TEXT,
         date_depart TEXT,
         heure_depart TEXT,
+        decalage_horaire_minutes INTEGER,
         FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE
       )
     ''');

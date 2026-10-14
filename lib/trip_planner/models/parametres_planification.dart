@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Parametres de planification du module de voyage, persistes dans la
 /// base trip_planner (table parametres, cle/valeur). Regroupent les
 /// reglages qui influencent le calcul des trajets et l'affichage des
@@ -21,11 +23,16 @@ class ParametresPlanification {
   /// (exclude=toll).
   final bool eviterPeages;
 
+  /// Couleur d'affichage du parcours (traces des trajets) sur la
+  /// carte. Bleu par defaut.
+  final Color couleurParcours;
+
   ParametresPlanification({
     this.vitesseMarcheKmh = 4.5,
     this.vitesseVeloKmh = 18.0,
     this.eviterAutoroutes = false,
     this.eviterPeages = false,
+    this.couleurParcours = const Color(0xFF2196F3),
   });
 
   ParametresPlanification copyWith({
@@ -33,12 +40,14 @@ class ParametresPlanification {
     double? vitesseVeloKmh,
     bool? eviterAutoroutes,
     bool? eviterPeages,
+    Color? couleurParcours,
   }) {
     return ParametresPlanification(
       vitesseMarcheKmh: vitesseMarcheKmh ?? this.vitesseMarcheKmh,
       vitesseVeloKmh: vitesseVeloKmh ?? this.vitesseVeloKmh,
       eviterAutoroutes: eviterAutoroutes ?? this.eviterAutoroutes,
       eviterPeages: eviterPeages ?? this.eviterPeages,
+      couleurParcours: couleurParcours ?? this.couleurParcours,
     );
   }
 
@@ -47,6 +56,7 @@ class ParametresPlanification {
         'vitesse_velo_kmh': vitesseVeloKmh.toString(),
         'eviter_autoroutes': eviterAutoroutes ? '1' : '0',
         'eviter_peages': eviterPeages ? '1' : '0',
+        'couleur_parcours': couleurParcours.toARGB32().toRadixString(16),
       };
 
   factory ParametresPlanification.fromMap(Map<String, String?> map) {
@@ -56,12 +66,19 @@ class ParametresPlanification {
       if (v == null) return def;
       return v == '1' || v.toLowerCase() == 'true';
     }
+    Color parseCouleur(String? v) {
+      final argb = v == null ? null : int.tryParse(v, radix: 16);
+      return argb == null
+          ? const Color(0xFF2196F3)
+          : Color(argb | 0xFF000000);
+    }
 
     return ParametresPlanification(
       vitesseMarcheKmh: parseDouble(map['vitesse_marche_kmh'], 4.5),
       vitesseVeloKmh: parseDouble(map['vitesse_velo_kmh'], 18.0),
       eviterAutoroutes: parseBool(map['eviter_autoroutes'], false),
       eviterPeages: parseBool(map['eviter_peages'], false),
+      couleurParcours: parseCouleur(map['couleur_parcours']),
     );
   }
 }

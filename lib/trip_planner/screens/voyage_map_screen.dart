@@ -19,6 +19,7 @@ import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
 import '../widgets/profil_altitude_chart.dart';
 import 'transfert_form_screen.dart';
+import '../models/parametres_planification.dart';
 import 'parametres_planification_screen.dart';
 import 'voyage_form_screen.dart';
 
@@ -58,6 +59,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   bool _afficherSentiers = false;
   bool _afficherWaypoints = true;
   bool _chargementSuggestions = false;
+  Color _couleurParcours = ParametresPlanification().couleurParcours;
 
   // Mode "ajout de waypoint personnel" : actif, un simple tap sur la
   // carte cree un waypoint personnel (epingle libre) au lieu d'ouvrir
@@ -94,6 +96,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   void initState() {
     super.initState();
     _charger();
+    _chargerCouleurParcours();
   }
 
   @override
@@ -215,6 +218,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       ),
     );
     if (changed == true && mounted) {
+      await _chargerCouleurParcours();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -644,25 +648,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     return type == TypeEtape.visite ? Colors.green.shade700 : Colors.orange;
   }
 
-  Color _couleurMode(ModeTransport mode) {
-    switch (mode) {
-      case ModeTransport.voiture:
-        return Theme.of(context).colorScheme.primary;
-      case ModeTransport.velo:
-        return Colors.teal;
-      case ModeTransport.vtt:
-        return Colors.deepOrange;
-      case ModeTransport.marche:
-        return Colors.green;
-      case ModeTransport.avion:
-        return Colors.blue;
-      case ModeTransport.train:
-        return Colors.purple;
-      case ModeTransport.bus:
-        return Colors.brown;
-      case ModeTransport.autre:
-        return Colors.grey.shade700;
-    }
+  Future<void> _chargerCouleurParcours() async {
+    final parametres = await TripPlannerDatabase.instance.getParametres();
+    if (!mounted) return;
+    setState(() => _couleurParcours = parametres.couleurParcours);
   }
 
   IconData _iconeMode(ModeTransport mode) {
@@ -1076,7 +1065,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                     return Polyline(
                       points: points,
                       strokeWidth: t.mode.estAutoCalcule ? 4 : 3,
-                      color: _couleurMode(t.mode),
+                      color: _couleurParcours,
                     );
                   }).toList(),
                 ),
@@ -1700,6 +1689,15 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     final heureDepart = etape.heureDepart;
 
     final buffer = StringBuffer(dateArrivee);
+    final decalage = etape.decalageHoraireMinutes;
+    if (decalage != null) {
+      final signe = decalage >= 0 ? '+' : '-';
+      final heures = decalage.abs() / 60;
+      final texte = heures == heures.truncateToDouble()
+          ? '${heures.toInt()}h'
+          : '${heures.toStringAsFixed(1)}h'.replaceAll('.0', '');
+      buffer.write(' · UTC$signe$texte');
+    }
     if (heureArrivee != null) {
       buffer.write(' $heureArrivee');
     }

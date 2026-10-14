@@ -51,6 +51,8 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   DateTime? _dateDepart; // null = meme jour que l'arrivee
   TimeOfDay? _heureDepart;
   TypeEtape _type = TypeEtape.visite;
+  int? _decalageHoraireHeures;
+  bool _decalagePositif = true;
 
   List<LieuTrouve> _resultatsRecherche = [];
   bool _recherching = false;
@@ -76,6 +78,11 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       _type = etape.type;
       _heureArrivee = _parseHeure(etape.heureArrivee);
       _heureDepart = _parseHeure(etape.heureDepart);
+      final decalage = etape.decalageHoraireMinutes;
+      if (decalage != null) {
+        _decalagePositif = decalage >= 0;
+        _decalageHoraireHeures = (decalage.abs() / 60).round();
+      }
       if (etape.dateDepart != null) {
         _dateDepart = DateTime.tryParse(etape.dateDepart!);
       }
@@ -86,6 +93,12 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
         _nomController.text = widget.nomInitial!;
       }
     }
+  }
+
+  int? _decalageHoraireEnMinutes() {
+    if (_decalageHoraireHeures == null) return null;
+    final valeur = _decalageHoraireHeures! * 60;
+    return _decalagePositif ? valeur : -valeur;
   }
 
   TimeOfDay? _parseHeure(String? valeur) {
@@ -258,6 +271,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       heureArrivee: estVisite ? _formatHeure(_heureArrivee) : null,
       dateDepart: dateDepartTexte,
       heureDepart: estVisite ? _formatHeure(_heureDepart) : null,
+      decalageHoraireMinutes: _decalageHoraireEnMinutes(),
     );
 
     if (_isEdition) {
@@ -365,6 +379,63 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.public, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Decalage horaire de l\'etape par rapport a '
+                    'l\'heure de reference du voyage',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<int?>(
+                    isExpanded: true,
+                    value: _decalageHoraireHeures,
+                    hint: const Text('Aucun'),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Aucun'),
+                      ),
+                      for (var h = 1; h <= 14; h++)
+                        DropdownMenuItem<int?>(
+                          value: h,
+                          child: Text(
+                            _decalagePositif ? 'UTC+$h' : 'UTC-$h',
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _decalageHoraireHeures = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: true,
+                      label: Text('+'),
+                    ),
+                    ButtonSegment(
+                      value: false,
+                      label: Text('-'),
+                    ),
+                  ],
+                  selected: {_decalagePositif},
+                  onSelectionChanged: (selection) =>
+                      setState(() => _decalagePositif = selection.first),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             SegmentedButton<TypeEtape>(
               segments: const [
