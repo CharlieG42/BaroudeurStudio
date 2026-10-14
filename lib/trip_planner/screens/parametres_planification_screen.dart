@@ -5,8 +5,9 @@ import '../db/trip_planner_database.dart';
 import '../models/parametres_planification.dart';
 
 /// Fenetre de parametres du module de planification : vitesses moyennes
-/// utilisees pour corriger les durees estimees (marche, velo) et
-/// preferences d'itineraire pour la voiture (autoroutes, peages).
+/// utilisees pour corriger les durees estimees (marche, velo),
+/// preferences d'itineraire pour la voiture (autoroutes, peages) et
+/// couleur d'affichage du parcours sur la carte.
 /// Les valeurs sont persistees dans la base trip_planner et lues a
 /// chaque recalcul des trajets.
 class ParametresPlanificationScreen extends StatefulWidget {
@@ -24,7 +25,21 @@ class _ParametresPlanificationScreenState
   final _veloController = TextEditingController();
   bool _eviterAutoroutes = false;
   bool _eviterPeages = false;
+  Color _couleurParcours = ParametresPlanification().couleurParcours;
   bool _chargement = true;
+
+  static const _paletteParcours = [
+    Color(0xFF2196F3),
+    Color(0xFF1565C0),
+    Color(0xFF009688),
+    Color(0xFF4CAF50),
+    Color(0xFFFF9800),
+    Color(0xFFF44336),
+    Color(0xFF9C27B0),
+    Color(0xFF795548),
+    Color(0xFF607D8B),
+    Color(0xFF212121),
+  ];
 
   @override
   void initState() {
@@ -49,6 +64,7 @@ class _ParametresPlanificationScreenState
           p.vitesseVeloKmh.toStringAsFixed(1).replaceAll('.', ',');
       _eviterAutoroutes = p.eviterAutoroutes;
       _eviterPeages = p.eviterPeages;
+      _couleurParcours = p.couleurParcours;
       _chargement = false;
     });
   }
@@ -63,6 +79,7 @@ class _ParametresPlanificationScreenState
         vitesseVeloKmh: velo ?? 18.0,
         eviterAutoroutes: _eviterAutoroutes,
         eviterPeages: _eviterPeages,
+        couleurParcours: _couleurParcours,
       ),
     );
     if (!mounted) return;
@@ -178,6 +195,29 @@ class _ParametresPlanificationScreenState
               value: _eviterPeages,
               onChanged: (v) => setState(() => _eviterPeages = v),
             ),
+            const SizedBox(height: 24),
+            const Text(
+              'Affichage',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Couleur du parcours trace sur la carte.',
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final couleur in _paletteParcours)
+                  _ChoixCouleur(
+                    couleur: couleur,
+                    selectionnee:
+                        couleur.toARGB32() == _couleurParcours.toARGB32(),
+                    onTap: () => setState(() => _couleurParcours = couleur),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             Text(
               "Les preferences s'appliquent au prochain recalcul des "
@@ -186,6 +226,43 @@ class _ParametresPlanificationScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Pastille cliquable de la palette de couleurs du parcours.
+class _ChoixCouleur extends StatelessWidget {
+  const _ChoixCouleur({
+    required this.couleur,
+    required this.selectionnee,
+    required this.onTap,
+  });
+
+  final Color couleur;
+  final bool selectionnee;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: couleur,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selectionnee
+                ? Theme.of(context).colorScheme.onSurface
+                : Colors.black26,
+            width: selectionnee ? 3 : 1,
+          ),
+        ),
+        child: selectionnee
+            ? const Icon(Icons.check, color: Colors.white, size: 20)
+            : null,
       ),
     );
   }
