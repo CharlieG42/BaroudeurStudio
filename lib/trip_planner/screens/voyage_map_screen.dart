@@ -1621,12 +1621,29 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                etape.nom,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      etape.nom,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (_libelleFuseau(etape) != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      _libelleFuseau(etape)!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(_formatPeriode(etape)),
@@ -1689,15 +1706,6 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     final heureDepart = etape.heureDepart;
 
     final buffer = StringBuffer(dateArrivee);
-    final decalage = etape.decalageHoraireMinutes;
-    if (decalage != null) {
-      final signe = decalage >= 0 ? '+' : '-';
-      final heures = decalage.abs() / 60;
-      final texte = heures == heures.truncateToDouble()
-          ? '${heures.toInt()}h'
-          : '${heures.toStringAsFixed(1)}h'.replaceAll('.0', '');
-      buffer.write(' · UTC$signe$texte');
-    }
     if (heureArrivee != null) {
       buffer.write(' $heureArrivee');
     }
@@ -1710,6 +1718,19 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     }
 
     return buffer.toString();
+  }
+
+  /// Libelle du fuseau horaire de l'etape au format 'GMT +8' ou
+  /// 'GMT -5,5'. Null si aucun decalage n'est renseigne.
+  String? _libelleFuseau(Etape etape) {
+    final decalage = etape.decalageHoraireMinutes;
+    if (decalage == null) return null;
+    final signe = decalage >= 0 ? '+' : '-';
+    final heures = decalage.abs() / 60;
+    final texte = heures == heures.truncateToDouble()
+        ? '${heures.toInt()}'
+        : heures.toStringAsFixed(1).replaceAll('.', ',');
+    return 'GMT $signe$texte';
   }
 
   Widget _buildEmptyState() {
@@ -1764,7 +1785,26 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                 foregroundColor: Colors.white,
                 child: Text('${index + 1}'),
               ),
-              title: Text(etape.nom),
+              title: Builder(
+                builder: (context) {
+                  final fuseau = _libelleFuseau(etape);
+                  if (fuseau == null) return Text(etape.nom);
+                  return Row(
+                    children: [
+                      Flexible(child: Text(etape.nom)),
+                      const SizedBox(width: 8),
+                      Text(
+                        fuseau,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
               subtitle: Text(_formatPeriode(etape)),
               trailing: IconButton(
                 icon: const Icon(Icons.more_vert),
