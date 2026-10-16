@@ -89,8 +89,10 @@ class DriveRestoreService {
       // Telechargement dans le dossier temporaire.
       final tempDir = await getTemporaryDirectory();
       final cheminLocal = '${tempDir.path}/${entree.nom}';
-      final flux = await api.files
-          .get(entree.id, downloadOptions: drive.DownloadOptions.media);
+      final flux = await api.files.get(
+        entree.id,
+        downloadOptions: drive.DownloadOptions.fullMedia,
+      );
       if (flux is! drive.Media) {
         return const ResultatRestauration(
             ok: false, message: 'Telechargement impossible.');
@@ -98,6 +100,7 @@ class DriveRestoreService {
       final fichierLocal = File(cheminLocal);
       final sortie = fichierLocal.openWrite();
       await flux.stream.pipe(sortie);
+      await sortie.flush();
 
       // Routage par l'identifiant de format du manifeste.
       final format = _lireFormat(await fichierLocal.readAsBytes());

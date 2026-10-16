@@ -6,7 +6,7 @@ import '../db/trip_planner_database.dart';
 import '../models/voyage.dart';
 import '../../services/drive/drive_backup_orchestrator.dart';
 import '../../services/drive/drive_backup_service.dart';
-import '../../services/trip_export_service.dart';
+import '../services/trip_export_service.dart';
 
 /// Formulaire de creation ou d'edition d'un voyage.
 class VoyageFormScreen extends StatefulWidget {
