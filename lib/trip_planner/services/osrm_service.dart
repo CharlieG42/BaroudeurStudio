@@ -39,6 +39,12 @@ class OsrmService {
   static const String baseUrlPattern =
       'https://routing.openstreetmap.de/routed-{profil}/route/v1/driving';
 
+  /// Identification applicative exigee par les politiques d'usage des
+  /// services FOSSGIS (remplace le User-Agent "dart/..." par defaut).
+  static const Map<String, String> _headers = {
+    'User-Agent': 'BaroudeurStudio-TripPlanner/1.0 (usage personnel)',
+  };
+
   /// Instance FOSSGIS correspondant au mode de transport. Ne
   /// s'applique qu'aux modes auto-calcules (voir [ModeTransportInfo]).
   String _instance(ModeTransport mode) {
@@ -74,14 +80,32 @@ class OsrmService {
   }) async {
     final coords = '$lonDepart,$latDepart;$lonArrivee,$latArrivee';
     final url = baseUrlPattern.replaceFirst('{profil}', _instance(mode));
-    // Options d'exclusion supportees par le profil voiture FOSSGIS :
-    // motorway (autoroutes) et toll (peage). Sans effet reel sur les
-    // profils bike/foot (pas d'autoroutes dans leur graphe), on ne
-    // les envoie que pour la voiture pour garder des URLs simples.
+    // Options d'exclusion best effort : le profil voiture FOSSGIS ne
+    // supporte pas toutes les combinaisons (rejet "Exclude flag
+    // combination is not supported"). Si la requete avec exclusions
+    // echoue, on retente sans exclusions pour ne jamais perdre le
+    // trace de l'itineraire.
     final excludes = <String>[
       if (mode == ModeTransport.voiture && eviterAutoroutes) 'motorway',
       if (mode == ModeTransport.voiture && eviterPeages) 'toll',
     ];
+
+    final resultatAvecExclusions = await _requeteRoute(url, coords, excludes);
+    if (resultatAvecExclusions != null) return resultatAvecExclusions;
+
+    if (excludes.isNotEmpty) {
+      return _requeteRoute(url, coords, const []);
+    }
+    return null;
+  }
+
+  /// Execute une requete OSRM avec les exclusions donnees et
+  /// retourne null si le serveur refuse ou ne trouve aucune route.
+  Future<ResultatItineraire?> _requeteRoute(
+    String url,
+    String coords,
+    List<String> excludes,
+  ) async {
     final parametresUrl = [
       'overview=full',
       'geometries=geojson',
@@ -92,7 +116,7 @@ class OsrmService {
     final uri = Uri.parse('$url/$coords?$parametresUrl');
     try {
       final response = await http
-          .get(uri)
+          .get(uri, headers: _headers)
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
