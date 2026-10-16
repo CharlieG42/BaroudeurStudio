@@ -108,6 +108,7 @@ class _VoyageFormScreenState extends State<VoyageFormScreen> {
       genererBwzt: () async {
         try {
           final v = await TripPlannerDatabase.instance.getVoyage(id!);
+          if (v == null) return null;
           return await TripExportService().exporterVoyage(v);
         } catch (_) {
           return null;
