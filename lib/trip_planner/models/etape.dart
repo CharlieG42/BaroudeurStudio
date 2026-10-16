@@ -33,6 +33,7 @@ class Etape {
   final String? dateDepart; // format ISO 'yyyy-MM-dd', defaut = date
   final String? heureDepart; // format 'HH:mm'
   final int? decalageHoraireMinutes; // decalage horaire local vs UTC
+  final int? parentId; // sous-etape : id de l'etape visite parente
 
   Etape({
     this.id,
@@ -49,6 +50,7 @@ class Etape {
     this.dateDepart,
     this.heureDepart,
     this.decalageHoraireMinutes,
+    this.parentId,
   });
 
   /// Date de depart effective : [dateDepart] si renseignee, sinon la
@@ -71,6 +73,7 @@ class Etape {
       'date_depart': dateDepart,
       'heure_depart': heureDepart,
       'decalage_horaire_minutes': decalageHoraireMinutes,
+      'parent_id': parentId,
     };
   }
 
@@ -90,6 +93,7 @@ class Etape {
       dateDepart: map['date_depart'] as String?,
       heureDepart: map['heure_depart'] as String?,
       decalageHoraireMinutes: map['decalage_horaire_minutes'] as int?,
+      parentId: map['parent_id'] as int?,
     );
   }
 
@@ -112,6 +116,8 @@ class Etape {
     bool effacerHeureDepart = false,
     bool effacerDecalageHoraire = false,
     int? decalageHoraireMinutes,
+    int? parentId,
+    bool effacerParentId = false,
   }) {
     return Etape(
       id: id ?? this.id,
@@ -132,6 +138,7 @@ class Etape {
       decalageHoraireMinutes: effacerDecalageHoraire
           ? null
           : (decalageHoraireMinutes ?? this.decalageHoraireMinutes),
+      parentId: effacerParentId ? null : (parentId ?? this.parentId),
     );
   }
 }

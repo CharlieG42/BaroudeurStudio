@@ -40,7 +40,7 @@ class TripPlannerDatabase {
 
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -91,6 +91,9 @@ class TripPlannerDatabase {
         'decalage_horaire_minutes',
         'INTEGER',
       );
+    }
+    if (oldVersion < 7) {
+      await _addColumnIfMissing(db, 'etapes', 'parent_id', 'INTEGER');
     }
   }
 
@@ -180,7 +183,9 @@ class TripPlannerDatabase {
         date_depart TEXT,
         heure_depart TEXT,
         decalage_horaire_minutes INTEGER,
-        FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE
+        parent_id INTEGER,
+        FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES etapes (id) ON DELETE CASCADE
       )
     ''');
 
