@@ -179,7 +179,6 @@ class _DialogueRestaurationState extends State<_DialogueRestauration> {
   final DriveRestoreService _restore = DriveRestoreService();
   final Map<CategorieBackup, List<EntreeBackupDrive>> _entrees = {};
   bool _chargement = true;
-  String? _erreur;
 
   @override
   void initState() {
@@ -188,10 +187,7 @@ class _DialogueRestaurationState extends State<_DialogueRestauration> {
   }
 
   Future<void> _charger() async {
-    setState(() {
-      _chargement = true;
-      _erreur = null;
-    });
+    setState(() => _chargement = true);
     final entrees = <CategorieBackup, List<EntreeBackupDrive>>{};
     for (final cat in CategorieBackup.values) {
       entrees[cat] = await _restore.lister(cat);
