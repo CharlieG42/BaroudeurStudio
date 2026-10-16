@@ -1,9 +1,10 @@
+import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:extension_google_sign_in_as_googleapis_auth/googleapis_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 
-import '../../config/google_drive_config.dart';
+import '../../config/google_drive_config.example.dart'
+    show GoogleDriveConfig;
 
 /// Résultat du test de connexion Google Drive.
 class DriveConnectionResult {
@@ -72,21 +73,22 @@ class DriveConnectionService {
           erreur: 'Impossible d\'obtenir les identifiants Google.',
         );
       }
-      final api = drive.DriveApi(authClient);
-      final about = await api.about.get(fields: 'user,storageQuota');
+      final about = drive.DriveApi(authClient)
+          .about
+          .get($fields: 'user,storageQuota');
       authClient.close();
 
-      final utilisateur = about.user?.emailAddress ??
-          about.user?.displayName ??
+      final utilisateur = (await about).user?.emailAddress ??
+          (await about).user?.displayName ??
           'compte inconnu';
-      final quota = about.storageQuota?.limit != null
-          ? '${_formatGo(about.storageQuota!.limit!)} Go'
-          : 'quota indisponible';
+      final quotaLimit = (await about).storageQuota?.limit;
 
       return DriveConnectionResult(
         ok: true,
         compte: utilisateur,
-        quota: quota,
+        quota: quotaLimit != null
+            ? '${_formatGo(quotaLimit)} Go'
+            : 'quota indisponible',
       );
     } on drive.ApiRequestError catch (e) {
       return DriveConnectionResult(
@@ -98,8 +100,11 @@ class DriveConnectionService {
     }
   }
 
-  String _formatGo(int octets) =>
-      (octets / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  String _formatGo(String octets) {
+    final valeur = int.tryParse(octets);
+    if (valeur == null) return octets;
+    return (valeur / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  }
 
   /// Déconnecte le compte Google courant.
   Future<void> deconnecter() async {
