@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:extension_google_sign_in_as_googleapis_auth/googleapis_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:google_sign_in_google_apis/google_apis.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 
 import '../../config/google_drive_config.dart';
@@ -65,10 +65,16 @@ class DriveConnectionService {
 
       // about.get : prouve en un appel que la Drive API est activée
       // et que le scope drive.file est bien accordé.
-      final client = await compte.authenticatedGoogleApisClient();
-      final api = drive.DriveApi(client);
+      final authClient = await compte.authenticatedClient();
+      if (authClient == null) {
+        return const DriveConnectionResult(
+          ok: false,
+          erreur: 'Impossible d\'obtenir les identifiants Google.',
+        );
+      }
+      final api = drive.DriveApi(authClient);
       final about = await api.about.get(fields: 'user,storageQuota');
-      client.close();
+      authClient.close();
 
       final utilisateur = about.user?.emailAddress ??
           about.user?.displayName ??
@@ -112,8 +118,11 @@ class DriveConnectionService {
       throw StateError('Aucun compte Google connecté.');
     }
     _compte = compte;
-    final client = await compte.authenticatedGoogleApisClient();
-    return drive.DriveApi(client);
+    final authClient = await compte.authenticatedClient();
+    if (authClient == null) {
+      throw StateError('Impossible d\'obtenir les identifiants Google.');
+    }
+    return drive.DriveApi(authClient);
   }
 
   @visibleForTesting
