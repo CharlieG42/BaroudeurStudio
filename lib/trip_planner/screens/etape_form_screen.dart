@@ -23,6 +23,7 @@ class EtapeFormScreen extends StatefulWidget {
   final double? latitudeInitiale;
   final double? longitudeInitiale;
   final String? nomInitial;
+  final int? parentId;
 
   const EtapeFormScreen({
     super.key,
@@ -32,6 +33,7 @@ class EtapeFormScreen extends StatefulWidget {
     this.latitudeInitiale,
     this.longitudeInitiale,
     this.nomInitial,
+    this.parentId,
   });
 
   @override
@@ -297,11 +299,13 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdition
-            ? 'Modifier l\'etape'
-            : (widget.parentId != null
-                ? 'Nouvelle sous-etape'
-                : 'Nouvelle etape'),
+        title: Text(
+          _isEdition
+              ? 'Modifier l\'etape'
+              : (widget.parentId != null
+                  ? 'Nouvelle sous-etape'
+                  : 'Nouvelle etape'),
+        ),
       ),
       body: Form(
         key: _formKey,
