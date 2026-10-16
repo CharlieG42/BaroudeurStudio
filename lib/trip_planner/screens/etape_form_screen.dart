@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
+import '../services/insertion_etape_service.dart';
 import '../services/nominatim_service.dart';
 import '../widgets/documents_etape_section.dart';
 
@@ -22,6 +23,9 @@ class EtapeFormScreen extends StatefulWidget {
   final double? latitudeInitiale;
   final double? longitudeInitiale;
   final String? nomInitial;
+  final int? parentId;
+  final String? dateMinAutorisee; // borne basse du calendrier (ISO)
+  final String? dateMaxAutorisee; // borne haute du calendrier (ISO)
 
   const EtapeFormScreen({
     super.key,
@@ -31,6 +35,9 @@ class EtapeFormScreen extends StatefulWidget {
     this.latitudeInitiale,
     this.longitudeInitiale,
     this.nomInitial,
+    this.parentId,
+    this.dateMinAutorisee,
+    this.dateMaxAutorisee,
   });
 
   @override
@@ -38,6 +45,19 @@ class EtapeFormScreen extends StatefulWidget {
 }
 
 class _EtapeFormScreenState extends State<EtapeFormScreen> {
+  /// Bornes du calendrier : dates du voyage pour une etape racine,
+  /// creneau de l'etape parente pour une sous-etape.
+  DateTime get _dateMin =>
+      DateTime.tryParse(widget.dateMinAutorisee ?? '') ??
+      DateTime(2020);
+  DateTime get _dateMax =>
+      DateTime.tryParse(widget.dateMaxAutorisee ?? '') ??
+      DateTime(2100);
+
+  /// La date d'arrivee doit rester dans le creneau autorise.
+  bool _dateHorsCreneau(DateTime d) =>
+      d.isBefore(_dateMin) || d.isAfter(_dateMax);
+
   final _formKey = GlobalKey<FormState>();
   final _nomController = TextEditingController();
   final _rechercheController = TextEditingController();
@@ -182,11 +202,23 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   }
 
   Future<void> _choisirDateArrivee() async {
+    final horsBornes = _date != null && _dateHorsCreneau(_date!);
+    DateTime initiale;
+    if (horsBornes) {
+      initiale = _dateMin;
+    } else if (_date != null) {
+      initiale = _date!;
+    } else {
+      final maintenant = DateTime.now();
+      initiale = maintenant.isBefore(_dateMin) || maintenant.isAfter(_dateMax)
+          ? _dateMin
+          : maintenant;
+    }
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate: initiale.isAfter(_dateMax) ? _dateMin : initiale,
+      firstDate: _dateMin,
+      lastDate: _dateMax,
     );
     if (picked != null) {
       setState(() {
@@ -211,9 +243,9 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   Future<void> _choisirDateDepart() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dateDepart ?? _date ?? DateTime.now(),
-      firstDate: _date ?? DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate: _dateDepart ?? _date ?? _dateMin,
+      firstDate: _date ?? _dateMin,
+      lastDate: _dateMax,
     );
     if (picked != null) setState(() => _dateDepart = picked);
   }
@@ -252,6 +284,18 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       );
       return;
     }
+    if (_dateHorsCreneau(_date!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.parentId != null
+                ? 'La date doit rester dans le creneau de l\'etape visite.'
+                : 'La date doit rester dans les dates du voyage.',
+          ),
+        ),
+      );
+      return;
+    }
 
     final estVisite = _type == TypeEtape.visite;
     final dateDepartTexte = (estVisite && _dateDepart != null)
@@ -272,12 +316,20 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       dateDepart: dateDepartTexte,
       heureDepart: estVisite ? _formatHeure(_heureDepart) : null,
       decalageHoraireMinutes: _decalageHoraireEnMinutes(),
+      parentId: widget.etape?.parentId ?? widget.parentId,
     );
 
     if (_isEdition) {
       await TripPlannerDatabase.instance.updateEtape(etape);
-    } else {
+    } else if (etape.parentId != null) {
       await TripPlannerDatabase.instance.insertEtape(etape);
+    } else {
+      // Insertion intelligente : l'etape se place a sa date, pas en fin
+      // de liste, et les ordres sont renumerotes.
+      final db = TripPlannerDatabase.instance;
+      final id = await db.insertEtape(etape);
+      await InsertionEtapeService.insererIntelligent(
+          etape.copyWith(id: id));
     }
 
     if (!mounted) return;
@@ -288,7 +340,13 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdition ? 'Modifier l\'etape' : 'Nouvelle etape'),
+        title: Text(
+          _isEdition
+              ? 'Modifier l\'etape'
+              : (widget.parentId != null
+                  ? 'Nouvelle sous-etape'
+                  : 'Nouvelle etape'),
+        ),
       ),
       body: Form(
         key: _formKey,

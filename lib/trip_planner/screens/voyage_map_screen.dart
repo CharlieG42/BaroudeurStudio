@@ -50,6 +50,11 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   final TripCalculationService _calcService = TripCalculationService();
 
   List<Etape> _etapes = [];
+
+  /// Etapes racines uniquement (sans sous-etapes), dans l'ordre.
+  List<Etape> get _etapesRacines =>
+      _etapes.where((e) => e.parentId == null).toList()
+        ..sort((a, b) => a.ordre.compareTo(b.ordre));
   List<Trajet> _trajets = [];
   List<Waypoint> _waypoints = [];
   bool _loading = true;
@@ -122,16 +127,17 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   }
 
   void _centrerCarte() {
-    if (_etapes.isEmpty) return;
-    if (_etapes.length == 1) {
+    final racines = _etapesRacines;
+    if (racines.isEmpty) return;
+    if (racines.length == 1) {
       _mapController.move(
-        LatLng(_etapes.first.latitude, _etapes.first.longitude),
+        LatLng(racines.first.latitude, racines.first.longitude),
         9,
       );
       return;
     }
     final bounds = LatLngBounds.fromPoints(
-      _etapes.map((e) => LatLng(e.latitude, e.longitude)).toList(),
+      racines.map((e) => LatLng(e.latitude, e.longitude)).toList(),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mapController.fitCamera(
@@ -165,10 +171,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       MaterialPageRoute(
         builder: (_) => EtapeFormScreen(
           voyageId: widget.voyage.id!,
-          ordre: _etapes.length,
+          ordre: _etapesRacines.length,
           latitudeInitiale: lat,
           longitudeInitiale: lon,
           nomInitial: nom,
+          dateMinAutorisee: widget.voyage.dateDebut,
+          dateMaxAutorisee: widget.voyage.dateFin,
         ),
       ),
     );
@@ -178,6 +186,14 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   }
 
   Future<void> _modifierEtape(Etape etape) async {
+    // Pour une sous-etape, le calendrier est borne au creneau du
+    // parent (arrivee -> depart de la visite).
+    Etape? parente;
+    if (etape.parentId != null) {
+      parente = _etapesRacines
+          .where((e) => e.id == etape.parentId)
+          .firstOrNull;
+    }
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -185,6 +201,9 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           voyageId: widget.voyage.id!,
           ordre: etape.ordre,
           etape: etape,
+          dateMinAutorisee: parente?.date ?? widget.voyage.dateDebut,
+          dateMaxAutorisee:
+              parente?.dateDepartEffective ?? widget.voyage.dateFin,
         ),
       ),
     );
@@ -572,10 +591,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       MaterialPageRoute(
         builder: (_) => EtapeFormScreen(
           voyageId: widget.voyage.id!,
-          ordre: _etapes.length,
+          ordre: _etapesRacines.length,
           latitudeInitiale: waypoint.latitude,
           longitudeInitiale: waypoint.longitude,
           nomInitial: waypoint.nom,
+          dateMinAutorisee: widget.voyage.dateDebut,
+          dateMaxAutorisee: widget.voyage.dateFin,
         ),
       ),
     );
@@ -1124,7 +1145,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   ],
                 ),
               MarkerLayer(
-                markers: _etapes.asMap().entries.map((entry) {
+                markers: _etapesRacines.asMap().entries.map((entry) {
                   final index = entry.key;
                   final etape = entry.value;
                   return Marker(
@@ -1734,26 +1755,109 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   }
 
   Widget _buildListeEtapes() {
+    // Racines triees par ordre ; chaque sous-etape est inseree juste
+    // apres son parent (indentee) dans l'affichage de la timeline.
+    final racines = _etapes.where((e) => e.parentId == null).toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+    final lignes = <_LigneTimeline>[];
+    for (final racine in racines) {
+      lignes.add(_LigneTimeline(etape: racine, estSousEtape: false));
+      final enfants = _etapes
+          .where((e) => e.parentId == racine.id)
+          .toList()
+        ..sort((a, b) => a.ordre.compareTo(b.ordre));
+      for (final enfant in enfants) {
+        lignes.add(_LigneTimeline(etape: enfant, estSousEtape: true));
+      }
+    }
+
     return ReorderableListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _etapes.length,
+      itemCount: lignes.length,
       onReorderItem: (oldItemIndex, newItemIndex) async {
-        setState(() {
+        final ligne = lignes[oldItemIndex];
+        if (ligne.estSousEtape) {
+          // Reorganisation des sous-etapes d'un meme parent.
+          final cible = lignes[newItemIndex.clamp(0, lignes.length - 1)];
+          if (!cible.estSousEtape ||
+              cible.etape.parentId != ligne.etape.parentId) {
+            return; // pas de changement de parent par drag.
+          }
           if (newItemIndex > oldItemIndex) newItemIndex -= 1;
-          final etape = _etapes.removeAt(oldItemIndex);
-          _etapes.insert(newItemIndex, etape);
-        });
-        for (var i = 0; i < _etapes.length; i++) {
+          final sousEtapes = lignes
+              .where((l) =>
+                  l.estSousEtape &&
+                  l.etape.parentId == ligne.etape.parentId)
+              .toList();
+          final idx = sousEtapes.indexOf(ligne);
+          final deplacee = sousEtapes.removeAt(idx);
+          var nouvelIdx = idx;
+          if (cible == deplacee) return;
+          nouvelIdx = sousEtapes.indexOf(cible);
+          if (newItemIndex > oldItemIndex) nouvelIdx += 1;
+          sousEtapes.insert(nouvelIdx.clamp(0, sousEtapes.length), deplacee);
+          for (var i = 0; i < sousEtapes.length; i++) {
+            await TripPlannerDatabase.instance.updateEtape(
+                sousEtapes[i].etape.copyWith(ordre: i));
+          }
+          await _charger();
+          return;
+        }
+        // Reorganisation des etapes racines.
+        if (newItemIndex > oldItemIndex) newItemIndex -= 1;
+        final racinesCopy = [...racines];
+        final deplacee = racinesCopy.removeAt(racinesCopy.indexOf(ligne.etape));
+        // L'index cible est relatif a la liste complete (racines +
+        // sous-etapes affichees) : on le convertit en index racine.
+        var nbSousAvant = 0;
+        for (var i = 0; i < newItemIndex && i < lignes.length; i++) {
+          if (lignes[i].estSousEtape) nbSousAvant++;
+        }
+        var indexRacine = newItemIndex - nbSousAvant;
+        indexRacine = indexRacine.clamp(0, racinesCopy.length);
+        racinesCopy.insert(indexRacine, deplacee);
+        for (var i = 0; i < racinesCopy.length; i++) {
           await TripPlannerDatabase.instance
-              .updateEtape(_etapes[i].copyWith(ordre: i));
+              .updateEtape(racinesCopy[i].copyWith(ordre: i));
         }
         await _recalculerTrajets();
       },
       itemBuilder: (context, index) {
-        final etape = _etapes[index];
+        final ligne = lignes[index];
+        final etape = ligne.etape;
         final trajet = _trajetDepuis(etape);
         final etapeSuivante =
-            index < _etapes.length - 1 ? _etapes[index + 1] : null;
+            index < lignes.length - 1 && !lignes[index + 1].estSousEtape
+                ? lignes[index + 1].etape
+                : null;
+
+        if (ligne.estSousEtape) {
+          return Padding(
+            key: ValueKey('sous_${etape.id ?? etape.hashCode}'),
+            padding: const EdgeInsets.only(left: 56),
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.subdirectory_arrow_right,
+                  size: 20, color: Colors.grey),
+              title: Text(
+                etape.nom,
+                style: const TextStyle(fontSize: 14),
+              ),
+              subtitle: Text(
+                _formatPeriode(etape),
+                style: const TextStyle(fontSize: 11),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.more_vert, size: 18),
+                onPressed: () => _afficherDetailEtape(etape),
+              ),
+              onTap: () => _modifierEtape(etape),
+            ),
+          );
+        }
+
+        // Etape racine : numero + nom + bouton sous-etape si visite.
+        final numero = racines.indexOf(etape) + 1;
         return Column(
           key: ValueKey(etape.id ?? etape.hashCode),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1762,13 +1866,24 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
               leading: CircleAvatar(
                 backgroundColor: _couleurEtape(etape.type),
                 foregroundColor: Colors.white,
-                child: Text('${index + 1}'),
+                child: Text('$numero'),
               ),
               title: Text(etape.nom),
               subtitle: Text(_formatPeriode(etape)),
-              trailing: IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _afficherDetailEtape(etape),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (etape.type == TypeEtape.visite && etape.id != null)
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 20),
+                      tooltip: 'Ajouter une sous-etape',
+                      onPressed: () => _ajouterSousEtape(etape),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () => _afficherDetailEtape(etape),
+                  ),
+                ],
               ),
               onTap: () => _modifierEtape(etape),
             ),
@@ -1818,6 +1933,27 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
         );
       },
     );
+  }
+
+  /// Ajoute une sous-etape (activite d'une visite) sous l'etape parente.
+  Future<void> _ajouterSousEtape(Etape parente) async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EtapeFormScreen(
+          voyageId: widget.voyage.id!,
+          ordre: 0,
+          parentId: parente.id,
+          latitudeInitiale: parente.latitude,
+          longitudeInitiale: parente.longitude,
+          dateMinAutorisee: parente.date,
+          dateMaxAutorisee: parente.dateDepartEffective,
+        ),
+      ),
+    );
+    if (created == true) {
+      await _charger();
+    }
   }
 
   /// Fiche detail d'un trajet auto-calcule : resume complet (distance,
@@ -1921,4 +2057,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     if (m == 0) return '${h}h';
     return '${h}h${m.toString().padLeft(2, '0')}';
   }
+}
+
+/// Ligne d'affichage de la timeline : etape racine ou sous-etape.
+class _LigneTimeline {
+  final Etape etape;
+  final bool estSousEtape;
+
+  const _LigneTimeline({required this.etape, required this.estSousEtape});
 }
