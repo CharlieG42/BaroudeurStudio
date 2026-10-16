@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
+import '../services/drive/drive_backup_orchestrator.dart';
 import '../services/drive/drive_connection_service.dart';
 
 /// Boîte de dialogue « À propos » affichant la version de l'application
@@ -43,6 +44,12 @@ class AboutButton extends StatelessWidget {
               label: const Text('Tester la connexion Google Drive'),
               onPressed: () => _testerConnexionDrive(ctx),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.backup_outlined),
+              label: const Text('Tout sauvegarder sur Drive'),
+              onPressed: () => _toutSauvegarderDrive(ctx),
+            ),
           ],
         ),
         actions: [
@@ -53,6 +60,57 @@ class AboutButton extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toutSauvegarderDrive(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Sauvegarde Drive en cours…')),
+    );
+
+    final resultat =
+        await DriveBackupOrchestrator().sauvegarderToutMaintenant();
+    if (!context.mounted) return;
+
+    if (resultat.erreurs.isEmpty) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+              '${resultat.reussis} sauvegarde(s) envoyée(s) sur Drive.'),
+        ),
+      );
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Sauvegarde terminée avec erreurs'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${resultat.reussis} réussie(s), '
+                  '${resultat.erreurs.length} échec(s) :'),
+              const SizedBox(height: 8),
+              ...resultat.erreurs.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    e,
+                    style: const TextStyle(fontSize: 12, color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _testerConnexionDrive(BuildContext context) async {

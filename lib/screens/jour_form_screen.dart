@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -195,6 +197,29 @@ class _JourFormScreenState extends State<JourFormScreen> {
     }
   }
 
+  /// Lance la sauvegarde Drive opportuniste du trek courant.
+  Future<void> _declencherBackupDrive() async {
+    try {
+      final treks = await DatabaseHelper.instance.getTreks();
+      final trek = treks.where((t) => t.id == widget.trekId).firstOrNull;
+      if (trek == null) return;
+      await DriveBackupOrchestrator().declencherSiStale(
+        cle: 'trek_${trek.id}',
+        categorie: CategorieBackup.treks,
+        genererBwzt: () async {
+          final export = TrekExportService();
+          try {
+            return await export.exporterTrek(trek);
+          } catch (_) {
+            return null;
+          }
+        },
+      );
+    } catch (_) {
+      // Silencieux : jamais bloquant pour l'utilisateur.
+    }
+  }
+
   Future<void> _save({bool andClose = true, bool showSnackbar = true}) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -231,6 +256,11 @@ class _JourFormScreenState extends State<JourFormScreen> {
       final newId = await DatabaseHelper.instance.insertJour(jour);
       setState(() => _savedJourId = newId);
     }
+
+
+    // Trigger opportuniste : sauvegarde Drive du trek si stale (> 24 h).
+    // Fire-and-forget : ne ralentit jamais l'enregistrement du jour.
+    unawaited(_declencherBackupDrive());
 
     if (!mounted) return;
 
