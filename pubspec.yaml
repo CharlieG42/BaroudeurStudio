@@ -49,7 +49,6 @@ dependencies:
   archive: ^3.3.2
   # Sauvegarde Google Drive : connexion Google + client Drive API
   google_sign_in: 6.2.1
-  extension_google_sign_in_as_googleapis_auth: ^2.0.0
   googleapis: ^13.2.0
 
   # Module de planification de voyage : carte OpenStreetMap, appels

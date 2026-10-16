@@ -1,12 +1,40 @@
-import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:http/http.dart' as http;
 
 import '../../config/google_drive_config.example.dart'
     show GoogleDriveConfig;
 
-/// Résultat du test de connexion Google Drive.
+/// Client HTTP qui injecte le token d'acces Google en en-tete Authorization.
+///
+/// Alternative legere a extension_google_sign_in_as_googleapis_auth :
+/// le jeton provient de [GoogleSignInAccount.authentication] et dure
+/// environ une heure, ce qui suffit pour un test de connexion ou un
+/// upload de sauvegarde. Pour une session plus longue, re-appeler
+/// [GoogleSignInAccount.authentication] avant chaque requete.
+class _BearerClient extends http.BaseClient {
+  final String _token;
+  final http.Client _inner = http.Client();
+
+  _BearerClient(this._token);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.headers['Authorization'] = 'Bearer $_token';
+    return _inner.send(request);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
+  }
+}
+
+/// Resultat du test de connexion Google Drive.
 class DriveConnectionResult {
   final bool ok;
   final String? compte;
@@ -21,13 +49,13 @@ class DriveConnectionResult {
   });
 }
 
-/// Service de connexion à Google Drive.
+/// Service de connexion a Google Drive.
 ///
-/// Gère la connexion Google (google_sign_in) avec le scope `drive.file`,
-/// puis fournit un [drive.DriveApi] authentifié pour les uploads de
+/// Gere la connexion Google (google_sign_in) avec le scope `drive.file`,
+/// puis fournit un [drive.DriveApi] authentifie pour les uploads de
 /// sauvegarde. Le premier appel de test utilise `about.get` : il renvoie
-/// le compte connecté et le quota Drive, ce qui prouve en une requête
-/// que l'API est activée et le scope accordé.
+/// le compte connecte et le quota Drive, ce qui prouve en une requete
+/// que l'API est activee et le scope accorde.
 class DriveConnectionService {
   static final DriveConnectionService _instance =
       DriveConnectionService._internal();
@@ -43,10 +71,10 @@ class DriveConnectionService {
         scopes: [GoogleDriveConfig.driveScope],
       );
 
-  /// Compte actuellement connecté (null si non connecté).
+  /// Compte actuellement connecte (null si non connecte).
   GoogleSignInAccount? get compteActuel => _compte ?? _googleSignIn.currentUser;
 
-  /// Vrai si un compte est déjà connecté.
+  /// Vrai si un compte est deja connecte.
   bool get estConnecte => compteActuel != null;
 
   /// Se connecte (silencieusement si possible) et teste la Drive API
@@ -64,24 +92,16 @@ class DriveConnectionService {
       }
       _compte = compte;
 
-      // about.get : prouve en un appel que la Drive API est activée
-      // et que le scope drive.file est bien accordé.
-      final authClient = await compte.authenticatedClient();
-      if (authClient == null) {
-        return const DriveConnectionResult(
-          ok: false,
-          erreur: 'Impossible d\'obtenir les identifiants Google.',
-        );
-      }
-      final about = drive.DriveApi(authClient)
-          .about
-          .get($fields: 'user,storageQuota');
-      authClient.close();
+      // about.get : prouve en un appel que la Drive API est activee
+      // et que le scope drive.file est bien accorde.
+      final client = await _clientAuthentifie(compte);
+      final about =
+          await drive.DriveApi(client).about.get($fields: 'user,storageQuota');
+      client.close();
 
-      final utilisateur = (await about).user?.emailAddress ??
-          (await about).user?.displayName ??
-          'compte inconnu';
-      final quotaLimit = (await about).storageQuota?.limit;
+      final utilisateur =
+          about.user?.emailAddress ?? about.user?.displayName ?? 'compte inconnu';
+      final quotaLimit = about.storageQuota?.limit;
 
       return DriveConnectionResult(
         ok: true,
@@ -106,14 +126,14 @@ class DriveConnectionService {
     return (valeur / (1024 * 1024 * 1024)).toStringAsFixed(1);
   }
 
-  /// Déconnecte le compte Google courant.
+  /// Deconnecte le compte Google courant.
   Future<void> deconnecter() async {
     await _googleSignIn.disconnect();
     await _googleSignIn.signOut();
     _compte = null;
   }
 
-  /// Renvoie un client Drive authentifié (pour l'upload de sauvegardes).
+  /// Renvoie un client Drive authentifie (pour l'upload de sauvegardes).
   /// L'appelant est responsable de fermer le client HTTP.
   Future<drive.DriveApi> clientDrive() async {
     var compte = _googleSignIn.currentUser;
@@ -123,11 +143,16 @@ class DriveConnectionService {
       throw StateError('Aucun compte Google connecté.');
     }
     _compte = compte;
-    final authClient = await compte.authenticatedClient();
-    if (authClient == null) {
-      throw StateError('Impossible d\'obtenir les identifiants Google.');
+    return drive.DriveApi(await _clientAuthentifie(compte));
+  }
+
+  Future<http.Client> _clientAuthentifie(GoogleSignInAccount compte) async {
+    final auth = await compte.authentication;
+    final token = auth.accessToken;
+    if (token == null || token.isEmpty) {
+      throw StateError('Impossible d\'obtenir le jeton d\'accès Google.');
     }
-    return drive.DriveApi(authClient);
+    return _BearerClient(token);
   }
 
   @visibleForTesting
