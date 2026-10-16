@@ -32,7 +32,7 @@ import 'document_storage_service.dart';
 class TripExportService {
   static const String formatIdentifiant =
       'baroudeurstudio.tripplanner.export';
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
 
   final DocumentStorageService _documentStorage = DocumentStorageService();
 
@@ -98,6 +98,11 @@ class TripExportService {
         'heureArrivee': etape.heureArrivee,
         'dateDepart': etape.dateDepart,
         'heureDepart': etape.heureDepart,
+        'decalageHoraireMinutes': etape.decalageHoraireMinutes,
+        // Sous-etape : index portable de l'etape parente (null sinon).
+        'indexParent': etape.parentId != null
+            ? indexParEtapeId[etape.parentId]
+            : null,
         'documents': documentsJson,
       });
     }
@@ -175,6 +180,27 @@ class TripExportService {
   /// etapes, trajets et documents) dans la base de donnees locale, et
   /// retourne l'id de ce nouveau voyage. Leve une [FormatException] si
   /// le fichier n'est pas un export .bwzt valide.
+  /// Construit une [Etape] depuis les donnees JSON d'import, avec
+  /// son eventuel parentId resolu par l'appelant.
+  Etape _etapeDepuis(Map<String, dynamic> d, int voyageId, int? parentId) {
+    return Etape(
+      voyageId: voyageId,
+      ordre: d['ordre'] as int,
+      nom: d['nom'] as String,
+      latitude: (d['latitude'] as num).toDouble(),
+      longitude: (d['longitude'] as num).toDouble(),
+      date: d['date'] as String,
+      type: typeEtapeFromString(d['type'] as String? ?? 'visite'),
+      notes: d['notes'] as String? ?? '',
+      dureeVisiteMinutes: d['dureeVisiteMinutes'] as int?,
+      heureArrivee: d['heureArrivee'] as String?,
+      dateDepart: d['dateDepart'] as String?,
+      heureDepart: d['heureDepart'] as String?,
+      decalageHoraireMinutes: d['decalageHoraireMinutes'] as int?,
+      parentId: parentId,
+    );
+  }
+
   Future<int> importerVoyage(String cheminFichier) async {
     final bytes = await File(cheminFichier).readAsBytes();
 
@@ -220,24 +246,33 @@ class TripExportService {
 
     final etapeIdParIndex = <int, int>{};
 
+    // Les donnees avant v3 n'ont pas de sous-etapes (indexParent
+    // absent) : l'import reste retro-compatible tel quel.
+    final indexParentParIndex = <int, int?>{};
+    for (final etapeData in etapesData) {
+      indexParentParIndex[etapeData['index'] as int] =
+          etapeData['indexParent'] as int?;
+    }
+    // Premiere passe : etapes racines (le parent doit exister en
+    // base avant de creer les sous-etapes).
     for (final etapeData in etapesData) {
       final index = etapeData['index'] as int;
-      final etapeId = await db.insertEtape(Etape(
-        voyageId: voyageId,
-        ordre: etapeData['ordre'] as int,
-        nom: etapeData['nom'] as String,
-        latitude: (etapeData['latitude'] as num).toDouble(),
-        longitude: (etapeData['longitude'] as num).toDouble(),
-        date: etapeData['date'] as String,
-        type: typeEtapeFromString(etapeData['type'] as String? ?? 'visite'),
-        notes: etapeData['notes'] as String? ?? '',
-        dureeVisiteMinutes: etapeData['dureeVisiteMinutes'] as int?,
-        heureArrivee: etapeData['heureArrivee'] as String?,
-        dateDepart: etapeData['dateDepart'] as String?,
-        heureDepart: etapeData['heureDepart'] as String?,
-      ));
-      etapeIdParIndex[index] = etapeId;
-
+      if (indexParentParIndex[index] != null) continue; // sous-etape
+      etapeIdParIndex[index] =
+          await db.insertEtape(_etapeDepuis(etapeData, voyageId, null));
+    }
+    // Deuxieme passe : sous-etapes avec l'id du parent resolu.
+    for (final etapeData in etapesData) {
+      final index = etapeData['index'] as int;
+      final indexParent = indexParentParIndex[index];
+      if (indexParent == null) continue; // racine, deja creee
+      etapeIdParIndex[index] = await db.insertEtape(_etapeDepuis(
+          etapeData, voyageId, etapeIdParIndex[indexParent]));
+    }
+    // Documents rattaches aux etapes (racines et sous-etapes).
+    for (final etapeData in etapesData) {
+      final index = etapeData['index'] as int;
+      final etapeId = etapeIdParIndex[index]!;
       final documentsData =
           (etapeData['documents'] as List<dynamic>? ?? [])
               .cast<Map<String, dynamic>>();

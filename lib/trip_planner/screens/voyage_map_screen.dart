@@ -124,6 +124,42 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       _loading = false;
     });
     _centrerCarte();
+    await _autoReparerTrajetsManquants();
+  }
+
+  /// Auto-reparation : si des paires d'etapes racines consecutives
+  /// n'ont pas de trajet en base (ex: suppression par un bug passe,
+  /// ou echec de calcul hors ligne), on relance un recalcul silencieux
+  /// au chargement du voyage. La carte ne reste jamais sans tracé.
+  Future<void> _autoReparerTrajetsManquants() async {
+    if (widget.voyage.id == null) return;
+    final racines = _etapesRacines;
+    if (racines.length < 2) return;
+    final pairesAvecTrajet = _trajets
+        .map((t) => '${t.etapeDepartId}-${t.etapeArriveeId}')
+        .toSet();
+    var manquantes = 0;
+    for (var i = 0; i < racines.length - 1; i++) {
+      final d = racines[i].id;
+      final a = racines[i + 1].id;
+      if (d == null || a == null) continue;
+      if (!pairesAvecTrajet.contains('$d-$a')) manquantes++;
+    }
+    if (manquantes == 0) return;
+    final echecs =
+        await _calcService.recalculerTrajets(widget.voyage.id!);
+    await _charger();
+    if (!mounted) return;
+    if (echecs > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$echecs trajet(s) n\'ont pas pu etre calcules '
+            '(verifie ta connexion) : reessaie plus tard.',
+          ),
+        ),
+      );
+    }
   }
 
   void _centrerCarte() {
