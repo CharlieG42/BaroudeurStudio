@@ -47,6 +47,9 @@ dependencies:
 
   # ZIP pour ODP
   archive: ^3.3.2
+  # Sauvegarde Google Drive : connexion Google + client Drive API
+  google_sign_in: 6.2.1
+  googleapis: ^13.2.0
 
   # Module de planification de voyage : carte OpenStreetMap, appels
   # HTTP vers OSRM (routage) et Nominatim (recherche de lieux)
