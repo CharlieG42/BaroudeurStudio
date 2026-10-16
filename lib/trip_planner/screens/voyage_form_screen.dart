@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../db/trip_planner_database.dart';
 import '../models/voyage.dart';
+import '../../services/drive/drive_backup_orchestrator.dart';
+import '../../services/drive/drive_backup_service.dart';
+import '../services/trip_export_service.dart';
 
 /// Formulaire de creation ou d'edition d'un voyage.
 class VoyageFormScreen extends StatefulWidget {
@@ -88,11 +93,28 @@ class _VoyageFormScreenState extends State<VoyageFormScreen> {
       notes: _notesController.text.trim(),
     );
 
+    int? id = voyage.id;
     if (_isEdition) {
       await TripPlannerDatabase.instance.updateVoyage(voyage);
     } else {
-      await TripPlannerDatabase.instance.insertVoyage(voyage);
+      id = await TripPlannerDatabase.instance.insertVoyage(voyage);
     }
+
+    // Trigger opportuniste : sauvegarde Drive du voyage si stale.
+    // Fire-and-forget : ne ralentit jamais l'enregistrement.
+    unawaited(DriveBackupOrchestrator().declencherSiStale(
+      cle: 'voyage_$id',
+      categorie: CategorieBackup.voyages,
+      genererBwzt: () async {
+        try {
+          final v = await TripPlannerDatabase.instance.getVoyage(id!);
+          if (v == null) return null;
+          return await TripExportService().exporterVoyage(v);
+        } catch (_) {
+          return null;
+        }
+      },
+    ));
 
     if (!mounted) return;
     Navigator.pop(context, true);

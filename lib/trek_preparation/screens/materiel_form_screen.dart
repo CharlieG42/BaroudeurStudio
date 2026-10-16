@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +7,9 @@ import 'package:flutter/material.dart';
 import '../db/trek_preparation_database.dart';
 import '../models/materiel_models.dart';
 import '../services/materiel_photo_storage_service.dart';
+import '../../services/drive/drive_backup_orchestrator.dart';
+import '../../services/drive/drive_backup_service.dart';
+import '../services/preparation_export_service.dart';
 
 /// Formulaire de creation ou d'edition d'un materiel du catalogue :
 /// nom, marque, description, poids, famille, sous-famille et photo.
@@ -200,6 +204,21 @@ class _MaterielFormScreenState extends State<MaterielFormScreen> {
     } else {
       await TrekPreparationDatabase.instance.insertMateriel(materiel);
     }
+
+    // Trigger opportuniste : sauvegarde Drive du catalogue si stale.
+    // Fire-and-forget : ne ralentit jamais l'enregistrement.
+    unawaited(DriveBackupOrchestrator().declencherSiStale(
+      cle: 'preparation',
+      categorie: CategorieBackup.preparation,
+      genererBwzt: () async {
+        try {
+          return await PreparationExportService().exporterPreparation();
+        } catch (_) {
+          return null;
+        }
+      },
+    ));
+
     if (!mounted) return;
     Navigator.pop(context, true);
   }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/drive/drive_backup_orchestrator.dart';
+import '../services/drive/drive_backup_service.dart';
 import '../services/drive/drive_connection_service.dart';
+import '../services/drive/drive_restore_service.dart';
 
 /// Boîte de dialogue « À propos » affichant la version de l'application
 /// et un test de connexion Google Drive.
@@ -49,6 +51,12 @@ class AboutButton extends StatelessWidget {
               icon: const Icon(Icons.backup_outlined),
               label: const Text('Tout sauvegarder sur Drive'),
               onPressed: () => _toutSauvegarderDrive(ctx),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const Text('Restaurer depuis Drive'),
+              onPressed: () => _restaurerDepuisDrive(ctx),
             ),
           ],
         ),
@@ -113,6 +121,13 @@ class AboutButton extends StatelessWidget {
     }
   }
 
+  Future<void> _restaurerDepuisDrive(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => const _DialogueRestauration(),
+    );
+  }
+
   Future<void> _testerConnexionDrive(BuildContext context) async {
     final service = DriveConnectionService();
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -148,5 +163,117 @@ class AboutButton extends StatelessWidget {
         SnackBar(content: Text('Drive KO : ${resultat.erreur}')),
       );
     }
+  }
+}
+
+/// Dialogue de restauration : liste les sauvegardes Drive par categorie
+/// et permet de re-importer chaque archive .bwzt.
+class _DialogueRestauration extends StatefulWidget {
+  const _DialogueRestauration();
+
+  @override
+  State<_DialogueRestauration> createState() => _DialogueRestaurationState();
+}
+
+class _DialogueRestaurationState extends State<_DialogueRestauration> {
+  final DriveRestoreService _restore = DriveRestoreService();
+  final Map<CategorieBackup, List<EntreeBackupDrive>> _entrees = {};
+  bool _chargement = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _charger();
+  }
+
+  Future<void> _charger() async {
+    setState(() => _chargement = true);
+    final entrees = <CategorieBackup, List<EntreeBackupDrive>>{};
+    for (final cat in CategorieBackup.values) {
+      entrees[cat] = await _restore.lister(cat);
+    }
+    if (!mounted) return;
+    setState(() {
+      _entrees
+        ..clear()
+        ..addAll(entrees);
+      _chargement = false;
+    });
+  }
+
+  Future<void> _restaurer(EntreeBackupDrive entree) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final resultat = await _restore.restaurer(entree);
+    if (!mounted) return;
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+            resultat.ok ? 'Restauration : ${resultat.message}'
+                : 'Echec : ${resultat.message}'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Restaurer depuis Drive'),
+      content: SizedBox(
+        width: 360,
+        child: _chargement
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _charger,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final cat in CategorieBackup.values) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          '${cat.nomDossier} (${_entrees[cat]?.length ?? 0})',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if ((_entrees[cat] ?? []).isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 12, bottom: 6),
+                          child: Text('Aucune sauvegarde',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey)),
+                        ),
+                      for (final e in _entrees[cat] ?? [])
+                        ListTile(
+                          dense: true,
+                          title: Text(e.nom, style: const TextStyle(fontSize: 13)),
+                          subtitle: e.modifieLe == null
+                              ? null
+                              : Text(
+                                  'Modifie le ${e.modifieLe!.toLocal()}'
+                                      .substring(0, 22),
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.restore),
+                            tooltip: 'Restaurer',
+                            onPressed: () => _restaurer(e),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _chargement ? null : _charger,
+          child: const Text('Rafraichir'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fermer'),
+        ),
+      ],
+    );
   }
 }
