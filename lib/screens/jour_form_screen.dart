@@ -7,6 +7,9 @@ import 'package:intl/intl.dart';
 import '../db/database_helper.dart';
 import '../db/gpx_service.dart';
 import '../models/jour_trek.dart';
+import '../services/drive/drive_backup_orchestrator.dart';
+import '../services/drive/drive_backup_service.dart';
+import '../services/trek_export_service.dart';
 import '../widgets/media_gallery.dart';
 import '../widgets/voice_note_recorder.dart';
 
