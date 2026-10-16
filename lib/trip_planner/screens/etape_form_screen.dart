@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
+import '../services/insertion_etape_service.dart';
 import '../services/nominatim_service.dart';
 import '../widgets/documents_etape_section.dart';
 
@@ -272,12 +273,20 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       dateDepart: dateDepartTexte,
       heureDepart: estVisite ? _formatHeure(_heureDepart) : null,
       decalageHoraireMinutes: _decalageHoraireEnMinutes(),
+      parentId: widget.etape?.parentId ?? widget.parentId,
     );
 
     if (_isEdition) {
       await TripPlannerDatabase.instance.updateEtape(etape);
-    } else {
+    } else if (etape.parentId != null) {
       await TripPlannerDatabase.instance.insertEtape(etape);
+    } else {
+      // Insertion intelligente : l'etape se place a sa date, pas en fin
+      // de liste, et les ordres sont renumerotes.
+      final db = TripPlannerDatabase.instance;
+      final id = await db.insertEtape(etape);
+      await InsertionEtapeService.insererIntelligent(
+          etape.copyWith(id: id));
     }
 
     if (!mounted) return;
@@ -288,7 +297,11 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdition ? 'Modifier l\'etape' : 'Nouvelle etape'),
+        title: Text(_isEdition
+            ? 'Modifier l\'etape'
+            : (widget.parentId != null
+                ? 'Nouvelle sous-etape'
+                : 'Nouvelle etape'),
       ),
       body: Form(
         key: _formKey,
