@@ -46,7 +46,12 @@ class TripCalculationService {
   /// (ex: pas de connexion reseau), pour que l'UI puisse avertir
   /// l'utilisateur sans bloquer le reste de la planification.
   Future<int> recalculerTrajets(int voyageId) async {
-    final etapes = await _db.getEtapesForVoyage(voyageId);
+    // Seules les etapes racines participent a l'itineraire : les
+    // sous-etapes (activites d'une visite) restent au meme endroit
+    // que leur parent et ne creent pas de trajet.
+    final toutesEtapes = await _db.getEtapesForVoyage(voyageId);
+    final etapes =
+        toutesEtapes.where((e) => e.parentId == null).toList();
     final trajetsExistants = await _db.getTrajetsForVoyage(voyageId);
 
     if (etapes.length < 2) {

@@ -50,6 +50,11 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   final TripCalculationService _calcService = TripCalculationService();
 
   List<Etape> _etapes = [];
+
+  /// Etapes racines uniquement (sans sous-etapes), dans l'ordre.
+  List<Etape> get _etapesRacines =>
+      _etapes.where((e) => e.parentId == null).toList()
+        ..sort((a, b) => a.ordre.compareTo(b.ordre));
   List<Trajet> _trajets = [];
   List<Waypoint> _waypoints = [];
   bool _loading = true;
@@ -122,16 +127,17 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   }
 
   void _centrerCarte() {
-    if (_etapes.isEmpty) return;
-    if (_etapes.length == 1) {
+    final racines = _etapesRacines;
+    if (racines.isEmpty) return;
+    if (racines.length == 1) {
       _mapController.move(
-        LatLng(_etapes.first.latitude, _etapes.first.longitude),
+        LatLng(racines.first.latitude, racines.first.longitude),
         9,
       );
       return;
     }
     final bounds = LatLngBounds.fromPoints(
-      _etapes.map((e) => LatLng(e.latitude, e.longitude)).toList(),
+      racines.map((e) => LatLng(e.latitude, e.longitude)).toList(),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mapController.fitCamera(
@@ -165,10 +171,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       MaterialPageRoute(
         builder: (_) => EtapeFormScreen(
           voyageId: widget.voyage.id!,
-          ordre: _etapes.length,
+          ordre: _etapesRacines.length,
           latitudeInitiale: lat,
           longitudeInitiale: lon,
           nomInitial: nom,
+          dateMinAutorisee: widget.voyage.dateDebut,
+          dateMaxAutorisee: widget.voyage.dateFin,
         ),
       ),
     );
@@ -178,6 +186,14 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   }
 
   Future<void> _modifierEtape(Etape etape) async {
+    // Pour une sous-etape, le calendrier est borne au creneau du
+    // parent (arrivee -> depart de la visite).
+    Etape? parente;
+    if (etape.parentId != null) {
+      parente = _etapesRacines
+          .where((e) => e.id == etape.parentId)
+          .firstOrNull;
+    }
     final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -185,6 +201,9 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           voyageId: widget.voyage.id!,
           ordre: etape.ordre,
           etape: etape,
+          dateMinAutorisee: parente?.date ?? widget.voyage.dateDebut,
+          dateMaxAutorisee:
+              parente?.dateDepartEffective ?? widget.voyage.dateFin,
         ),
       ),
     );
@@ -572,10 +591,12 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       MaterialPageRoute(
         builder: (_) => EtapeFormScreen(
           voyageId: widget.voyage.id!,
-          ordre: _etapes.length,
+          ordre: _etapesRacines.length,
           latitudeInitiale: waypoint.latitude,
           longitudeInitiale: waypoint.longitude,
           nomInitial: waypoint.nom,
+          dateMinAutorisee: widget.voyage.dateDebut,
+          dateMaxAutorisee: widget.voyage.dateFin,
         ),
       ),
     );
@@ -1124,7 +1145,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                   ],
                 ),
               MarkerLayer(
-                markers: _etapes.asMap().entries.map((entry) {
+                markers: _etapesRacines.asMap().entries.map((entry) {
                   final index = entry.key;
                   final etape = entry.value;
                   return Marker(
@@ -1925,6 +1946,8 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           parentId: parente.id,
           latitudeInitiale: parente.latitude,
           longitudeInitiale: parente.longitude,
+          dateMinAutorisee: parente.date,
+          dateMaxAutorisee: parente.dateDepartEffective,
         ),
       ),
     );
