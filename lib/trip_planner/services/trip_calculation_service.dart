@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import '../db/trip_planner_database.dart';
 import '../models/etape.dart';
 import '../models/trajet.dart';
+import '../models/parametres_planification.dart';
 import 'brouter_service.dart';
 import 'elevation_service.dart';
 import 'osrm_service.dart';
@@ -119,25 +121,43 @@ class TripCalculationService {
               eviterPeages: parametres.eviterPeages,
             );
 
+      // Meme sans reseau (ou si le serveur refuse la requete), on
+      // enregistre un trajet de secours en ligne droite entre les
+      // deux etapes : le parcours reste toujours trace sur la carte,
+      // et un recalcul ultereur ecrasera cette estimation des que le
+      // routage repondra a nouveau.
+      final points = resultat?.points ??
+          [
+            [depart.latitude, depart.longitude],
+            [arrivee.latitude, arrivee.longitude],
+          ];
+      final distanceKm = resultat?.distanceKm ??
+          _distanceHaversineKm(
+            depart.latitude,
+            depart.longitude,
+            arrivee.latitude,
+            arrivee.longitude,
+          );
+      final dureeMinutes = resultat?.dureeMinutes ??
+          _dureeEstimeeMinutes(mode, distanceKm, parametres);
+
       if (resultat == null) {
         echecs++;
-        continue;
       }
 
       // Correction de la duree selon les vitesses moyennes de
       // l'utilisateur : les profils de routage supposent un terrain
       // plat et un rythme soutenu ; un randonneur en montagne ou un
       // cyclotouriste charge est plus lent.
-      var dureeMinutes = resultat.dureeMinutes;
+      var dureeMinutesFinale = dureeMinutes;
       if (mode == ModeTransport.marche &&
           parametres.vitesseMarcheKmh > 0) {
-        dureeMinutes =
-            (resultat.distanceKm / parametres.vitesseMarcheKmh * 60)
-                .round();
+        dureeMinutesFinale =
+            (distanceKm / parametres.vitesseMarcheKmh * 60).round();
       } else if (mode == ModeTransport.velo &&
           parametres.vitesseVeloKmh > 0) {
-        dureeMinutes =
-            (resultat.distanceKm / parametres.vitesseVeloKmh * 60).round();
+        dureeMinutesFinale =
+            (distanceKm / parametres.vitesseVeloKmh * 60).round();
       }
 
       // Denivele et profil d'altitude du trace (best effort : sans
@@ -145,8 +165,8 @@ class TripCalculationService {
       var denivelePositif = 0;
       var deniveleNegatif = 0;
       var profilJson = '[]';
-      if (resultat.points.isNotEmpty) {
-        final profil = await _elevation.calculerProfil(resultat.points);
+      if (points.length > 2) {
+        final profil = await _elevation.calculerProfil(points);
         if (profil != null) {
           denivelePositif = profil.denivelePositifM;
           deniveleNegatif = profil.deniveleNegatifM;
@@ -159,9 +179,9 @@ class TripCalculationService {
         etapeDepartId: depart.id!,
         etapeArriveeId: arrivee.id!,
         mode: mode,
-        distanceKm: resultat.distanceKm,
-        dureeMinutes: dureeMinutes,
-        geometrieJson: Trajet.encodePoints(resultat.points),
+        distanceKm: distanceKm,
+        dureeMinutes: dureeMinutesFinale,
+        geometrieJson: Trajet.encodePoints(points),
         denivelePositifM: denivelePositif,
         deniveleNegatifM: deniveleNegatif,
         profilAltitudeJson: profilJson,
@@ -169,5 +189,57 @@ class TripCalculationService {
     }
 
     return echecs;
+  }
+
+  /// Distance a vol d'oiseau (formule de haversine) entre deux points.
+  static double _distanceHaversineKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const rayonTerreKm = 6371.0;
+    final dLat = _degEnRad(lat2 - lat1);
+    final dLon = _degEnRad(lon2 - lon1);
+    final a =
+        (dLat / 2) * (dLat / 2) +
+            _degEnRad(lat1) *
+                _degEnRad(lat2) *
+                (dLon / 2) *
+                (dLon / 2);
+    return 2 * rayonTerreKm * math.asin(math.sqrt(a));
+  }
+
+  static double _degEnRad(double deg) => deg * math.pi / 180.0;
+
+  /// Duree d'un trajet de secours selon la vitesse moyenne du mode :
+  /// parametres de l'utilisateur si disponibles, sinon vitesses
+  /// classiques (voiture 80 km/h, velo 15 km/h, vtt 12 km/h, marche 4
+  /// km/h).
+  static int _dureeEstimeeMinutes(
+    ModeTransport mode,
+    double distanceKm,
+    ParametresPlanification parametres,
+  ) {
+    double vitesse;
+    switch (mode) {
+      case ModeTransport.marche:
+        vitesse = parametres.vitesseMarcheKmh > 0
+            ? parametres.vitesseMarcheKmh
+            : 4.0;
+        break;
+      case ModeTransport.velo:
+        vitesse = parametres.vitesseVeloKmh > 0
+            ? parametres.vitesseVeloKmh
+            : 15.0;
+        break;
+      case ModeTransport.vtt:
+        vitesse = 12.0;
+        break;
+      default:
+        vitesse = 80.0;
+        break;
+    }
+    return (distanceKm / vitesse * 60).round();
   }
 }
