@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +12,91 @@ import '../models/document_etape.dart';
 import '../models/parametres_planification.dart';
 import '../models/waypoint.dart';
 
+/// Version actuelle du schema de la base du planificateur de voyage.
+/// Toute colonne ajoutee doit l'etre a la fois dans [_schemaTables]
+/// (via la migration correspondante) et ici si la version est
+/// incremente : l'invariant est verifie par
+/// test/trip_planner_database_test.dart.
+const int _kDbVersion = 8;
+
+/// Colonnes attendues de chaque table du schema de la base du
+/// planificateur de voyage, avec le type SQLite de creation (utilise
+/// par la reparation ALTER TABLE de [_verifierSchema] ; les types
+/// des CREATE TABLE d'installation restent la reference).
+/// Sert de reference unique pour verifier/reparer les bases
+/// existantes a l'ouverture : toute colonne ajoutee doit figurer ici
+/// ET dans la migration qui l'introduit, sinon le test d'invariant
+/// de schema echoue.
+const Map<String, Map<String, String>> _schemaTables = {
+  'voyages': {
+    'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+    'titre': 'TEXT NOT NULL',
+    'date_debut': 'TEXT NOT NULL',
+    'date_fin': 'TEXT NOT NULL',
+    'notes': 'TEXT',
+  },
+  'etapes': {
+    'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+    'voyage_id': 'INTEGER NOT NULL',
+    'ordre': 'INTEGER NOT NULL',
+    'nom': 'TEXT NOT NULL',
+    'latitude': 'REAL NOT NULL',
+    'longitude': 'REAL NOT NULL',
+    'date': 'TEXT NOT NULL',
+    'type': "TEXT NOT NULL DEFAULT 'visite'",
+    'notes': 'TEXT',
+    'duree_visite_minutes': 'INTEGER',
+    'heure_arrivee': 'TEXT',
+    'date_depart': 'TEXT',
+    'heure_depart': 'TEXT',
+    'decalage_horaire_minutes': 'INTEGER',
+    'parent_id': 'INTEGER',
+  },
+  'trajets': {
+    'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+    'voyage_id': 'INTEGER NOT NULL',
+    'etape_depart_id': 'INTEGER NOT NULL',
+    'etape_arrivee_id': 'INTEGER NOT NULL',
+    'mode': "TEXT NOT NULL DEFAULT 'voiture'",
+    'distance_km': 'REAL NOT NULL',
+    'duree_minutes': 'INTEGER NOT NULL',
+    'geometrie_json': 'TEXT NOT NULL',
+    'transporteur': 'TEXT',
+    'lieu_depart': 'TEXT',
+    'lieu_arrivee': 'TEXT',
+    'heure_depart': 'TEXT',
+    'heure_arrivee': 'TEXT',
+    'notes': 'TEXT',
+    'denivele_positif_m': 'REAL',
+    'denivele_negatif_m': 'REAL',
+    'profil_altitude_json': 'TEXT',
+  },
+  'documents': {
+    'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+    'etape_id': 'INTEGER NOT NULL',
+    'nom_original': 'TEXT NOT NULL',
+    'chemin_fichier': 'TEXT NOT NULL',
+    'type_mime': 'TEXT',
+    'taille_octets': 'INTEGER NOT NULL DEFAULT 0',
+    'date_ajout': 'TEXT NOT NULL',
+  },
+  'waypoints': {
+    'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+    'voyage_id': 'INTEGER NOT NULL',
+    'nom': 'TEXT NOT NULL',
+    'latitude': 'REAL NOT NULL',
+    'longitude': 'REAL NOT NULL',
+    'source': "TEXT NOT NULL DEFAULT 'recommande'",
+    'categorie': "TEXT NOT NULL DEFAULT ''",
+    'notes': "TEXT NOT NULL DEFAULT ''",
+    'osm_id': 'TEXT',
+  },
+  'parametres': {
+    'cle': 'TEXT PRIMARY KEY',
+    'valeur': 'TEXT NOT NULL',
+  },
+};
+
 /// Couche d'acces a la base de donnees du module de planification de
 /// voyage. Volontairement independante de [DatabaseHelper] (le carnet
 /// de trek / livre illustre) : fichier SQLite separe
@@ -22,10 +108,19 @@ class TripPlannerDatabase {
 
   TripPlannerDatabase._internal();
 
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+  /// Reproduit l'initialisation complete (schema au complet) sur une
+  /// base neuve, en ignorant le singleton. Utilise par les tests.
+  Future<Database> ouvrirPourTest(String path) async {
+    return openDatabase(
+      path,
+      version: _kDbVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onOpen: _verifierSchema,
+    );
   }
 
   Future<Database> _initDatabase() async {
@@ -35,24 +130,31 @@ class TripPlannerDatabase {
       databaseFactory = databaseFactoryFfi;
     }
 
-    final dbDir = await getApplicationDocumentsDirectory();
-    final path = join(dbDir.path, 'trip_planner.db');
+    final dbDir = (await getApplicationDocumentsDirectory()).path;
+    final path = join(dbDir, 'trip_planner.db');
 
     return openDatabase(
       path,
-      version: 7,
+      version: _kDbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
-      // Repare les bases creees par une installation neuve en v7 : la
-      // table trajets y etait creee sans les colonnes de denivele, ce
-      // qui faisait echouer chaque enregistrement de trajet.
-      onOpen: (db) async {
-        await _assurerColonnesTrajets(db);
-      },
+      // Verifie que toutes les colonnes attendues sont presentes,
+      // quelle que soit la facon dont la base a ete creee
+      // (installation neuve ou upgrade depuis une ancienne version).
+      // Un bug de desynchronisation entre _onCreate et _onUpgrade
+      // (colonnes de denivele manquantes sur les installations
+      // neuves, v7) rendait chaque enregistrement de trajet impossible.
+      onOpen: _verifierSchema,
     );
+  }
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -81,8 +183,8 @@ class TripPlannerDatabase {
     }
     if (oldVersion < 5) {
       await _createParametresTableIfMissing(db);
-      await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'INTEGER');
-      await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'INTEGER');
+      await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'REAL');
+      await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'REAL');
       await _addColumnIfMissing(
         db,
         'trajets',
@@ -101,12 +203,36 @@ class TripPlannerDatabase {
     if (oldVersion < 7) {
       await _addColumnIfMissing(db, 'etapes', 'parent_id', 'INTEGER');
     }
+    if (oldVersion < 8) {
+      // Les deniveles etaient INTEGER ; SQLite etant faiblement type,
+      // les valeurs existantes restent exploitables sans conversion.
+      await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'REAL');
+      await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'REAL');
+    }
   }
 
-  Future<void> _assurerColonnesTrajets(Database db) async {
-    await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'INTEGER');
-    await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'INTEGER');
-    await _addColumnIfMissing(db, 'trajets', 'profil_altitude_json', 'TEXT');
+  /// Verifie que chaque table attendue possede toutes ses colonnes,
+  /// et ajoute les colonnes manquantes (bases creees par une version
+  /// anterieure desynchronisee). Contrairement a l'ancien correctif
+  /// ponctuel limite aux colonnes de denivele, cette verification
+  /// couvre l'ensemble du schema.
+  Future<void> _verifierSchema(Database db) async {
+    for (final entry in _schemaTables.entries) {
+      final tables = await db.rawQuery(
+        'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+        ['table', entry.key],
+      );
+      if (tables.isEmpty) continue;
+      final columns = await db.rawQuery('PRAGMA table_info(${entry.key})');
+      final existing = columns.map((c) => c['name'] as String).toSet();
+      for (final column in entry.value.entries) {
+        if (!existing.contains(column.key)) {
+          await db.execute(
+            'ALTER TABLE ${entry.key} ADD COLUMN ${column.key} ${column.value}',
+          );
+        }
+      }
+    }
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas
@@ -217,8 +343,8 @@ class TripPlannerDatabase {
         heure_depart TEXT,
         heure_arrivee TEXT,
         notes TEXT,
-        denivele_positif_m INTEGER,
-        denivele_negatif_m INTEGER,
+        denivele_positif_m REAL,
+        denivele_negatif_m REAL,
         profil_altitude_json TEXT,
         FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE,
         FOREIGN KEY (etape_depart_id) REFERENCES etapes (id) ON DELETE CASCADE,
@@ -260,7 +386,10 @@ class TripPlannerDatabase {
 
   Future<int> insertVoyage(Voyage voyage) async {
     final db = await database;
-    return db.insert('voyages', voyage.toMap()..remove('id'));
+    return _traceErreurs(
+      'insertVoyage',
+      () => db.insert('voyages', voyage.toMap()..remove('id')),
+    );
   }
 
   Future<List<Voyage>> getVoyages() async {
@@ -278,33 +407,45 @@ class TripPlannerDatabase {
 
   Future<int> updateVoyage(Voyage voyage) async {
     final db = await database;
-    return db.update(
-      'voyages',
-      voyage.toMap(),
-      where: 'id = ?',
-      whereArgs: [voyage.id],
+    return _traceErreurs(
+      'updateVoyage',
+      () => db.update(
+        'voyages',
+        voyage.toMap(),
+        where: 'id = ?',
+        whereArgs: [voyage.id],
+      ),
     );
   }
 
   Future<int> deleteVoyage(int id) async {
     final db = await database;
-    final etapes = await getEtapesForVoyage(id);
-    for (final etape in etapes) {
-      if (etape.id != null) {
-        await db.delete('documents', where: 'etape_id = ?', whereArgs: [etape.id]);
+    return _traceErreurs('deleteVoyage', () async {
+      final etapes = await getEtapesForVoyage(id);
+      for (final etape in etapes) {
+        if (etape.id != null) {
+          await db.delete(
+            'documents',
+            where: 'etape_id = ?',
+            whereArgs: [etape.id],
+          );
+        }
       }
-    }
-    await db.delete('trajets', where: 'voyage_id = ?', whereArgs: [id]);
-    await db.delete('etapes', where: 'voyage_id = ?', whereArgs: [id]);
-    await db.delete('waypoints', where: 'voyage_id = ?', whereArgs: [id]);
-    return db.delete('voyages', where: 'id = ?', whereArgs: [id]);
+      await db.delete('trajets', where: 'voyage_id = ?', whereArgs: [id]);
+      await db.delete('etapes', where: 'voyage_id = ?', whereArgs: [id]);
+      await db.delete('waypoints', where: 'voyage_id = ?', whereArgs: [id]);
+      return db.delete('voyages', where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   // ETAPES
 
   Future<int> insertEtape(Etape etape) async {
     final db = await database;
-    return db.insert('etapes', etape.toMap()..remove('id'));
+    return _traceErreurs(
+      'insertEtape',
+      () => db.insert('etapes', etape.toMap()..remove('id')),
+    );
   }
 
   Future<List<Etape>> getEtapesForVoyage(int voyageId) async {
@@ -320,23 +461,31 @@ class TripPlannerDatabase {
 
   Future<int> updateEtape(Etape etape) async {
     final db = await database;
-    return db.update(
-      'etapes',
-      etape.toMap(),
-      where: 'id = ?',
-      whereArgs: [etape.id],
+    return _traceErreurs(
+      'updateEtape',
+      () => db.update(
+        'etapes',
+        etape.toMap(),
+        where: 'id = ?',
+        whereArgs: [etape.id],
+      ),
     );
   }
 
   Future<int> deleteEtape(int id) async {
     final db = await database;
-    await db.delete('documents', where: 'etape_id = ?', whereArgs: [id]);
-    await db.delete(
-      'trajets',
-      where: 'etape_depart_id = ? OR etape_arrivee_id = ?',
-      whereArgs: [id, id],
+    return _traceErreurs(
+      'deleteEtape',
+      () async {
+        await db.delete('documents', where: 'etape_id = ?', whereArgs: [id]);
+        await db.delete(
+          'trajets',
+          where: 'etape_depart_id = ? OR etape_arrivee_id = ?',
+          whereArgs: [id, id],
+        );
+        return db.delete('etapes', where: 'id = ?', whereArgs: [id]);
+      },
     );
-    return db.delete('etapes', where: 'id = ?', whereArgs: [id]);
   }
 
   // TRAJETS
@@ -346,12 +495,14 @@ class TripPlannerDatabase {
   /// avant insertion, pour eviter les doublons apres un recalcul.
   Future<int> upsertTrajet(Trajet trajet) async {
     final db = await database;
-    await db.delete(
-      'trajets',
-      where: 'etape_depart_id = ? AND etape_arrivee_id = ?',
-      whereArgs: [trajet.etapeDepartId, trajet.etapeArriveeId],
-    );
-    return db.insert('trajets', trajet.toMap()..remove('id'));
+    return _traceErreurs('upsertTrajet', () async {
+      await db.delete(
+        'trajets',
+        where: 'etape_depart_id = ? AND etape_arrivee_id = ?',
+        whereArgs: [trajet.etapeDepartId, trajet.etapeArriveeId],
+      );
+      return db.insert('trajets', trajet.toMap()..remove('id'));
+    });
   }
 
   Future<List<Trajet>> getTrajetsForVoyage(int voyageId) async {
@@ -369,28 +520,40 @@ class TripPlannerDatabase {
   /// transferts saisis manuellement (avion, train, bus...).
   Future<void> deleteTrajetsVoitureForVoyage(int voyageId) async {
     final db = await database;
-    await db.delete(
-      'trajets',
-      where: 'voyage_id = ? AND mode = ?',
-      whereArgs: [voyageId, 'voiture'],
+    await _traceErreurs(
+      'deleteTrajetsVoitureForVoyage',
+      () => db.delete(
+        'trajets',
+        where: 'voyage_id = ? AND mode = ?',
+        whereArgs: [voyageId, 'voiture'],
+      ),
     );
   }
 
   Future<void> deleteTrajet(int id) async {
     final db = await database;
-    await db.delete('trajets', where: 'id = ?', whereArgs: [id]);
+    await _traceErreurs(
+      'deleteTrajet',
+      () => db.delete('trajets', where: 'id = ?', whereArgs: [id]),
+    );
   }
 
   Future<void> deleteTrajetsForVoyage(int voyageId) async {
     final db = await database;
-    await db.delete('trajets', where: 'voyage_id = ?', whereArgs: [voyageId]);
+    await _traceErreurs(
+      'deleteTrajetsForVoyage',
+      () => db.delete('trajets', where: 'voyage_id = ?', whereArgs: [voyageId]),
+    );
   }
 
   // DOCUMENTS
 
   Future<int> insertDocument(DocumentEtape document) async {
     final db = await database;
-    return db.insert('documents', document.toMap()..remove('id'));
+    return _traceErreurs(
+      'insertDocument',
+      () => db.insert('documents', document.toMap()..remove('id')),
+    );
   }
 
   Future<List<DocumentEtape>> getDocumentsForEtape(int etapeId) async {
@@ -406,14 +569,20 @@ class TripPlannerDatabase {
 
   Future<int> deleteDocument(int id) async {
     final db = await database;
-    return db.delete('documents', where: 'id = ?', whereArgs: [id]);
+    return _traceErreurs(
+      'deleteDocument',
+      () => db.delete('documents', where: 'id = ?', whereArgs: [id]),
+    );
   }
 
   // WAYPOINTS
 
   Future<int> insertWaypoint(Waypoint waypoint) async {
     final db = await database;
-    return db.insert('waypoints', waypoint.toMap()..remove('id'));
+    return _traceErreurs(
+      'insertWaypoint',
+      () => db.insert('waypoints', waypoint.toMap()..remove('id')),
+    );
   }
 
   Future<List<Waypoint>> getWaypointsForVoyage(int voyageId) async {
@@ -429,17 +598,23 @@ class TripPlannerDatabase {
 
   Future<int> updateWaypoint(Waypoint waypoint) async {
     final db = await database;
-    return db.update(
-      'waypoints',
-      waypoint.toMap(),
-      where: 'id = ?',
-      whereArgs: [waypoint.id],
+    return _traceErreurs(
+      'updateWaypoint',
+      () => db.update(
+        'waypoints',
+        waypoint.toMap(),
+        where: 'id = ?',
+        whereArgs: [waypoint.id],
+      ),
     );
   }
 
   Future<int> deleteWaypoint(int id) async {
     final db = await database;
-    return db.delete('waypoints', where: 'id = ?', whereArgs: [id]);
+    return _traceErreurs(
+      'deleteWaypoint',
+      () => db.delete('waypoints', where: 'id = ?', whereArgs: [id]),
+    );
   }
 
   /// Supprime les waypoints recommandes d'un voyage : utilise avant de
@@ -447,10 +622,31 @@ class TripPlannerDatabase {
   /// personnels de l'utilisateur.
   Future<void> deleteWaypointsRecommandesForVoyage(int voyageId) async {
     final db = await database;
-    await db.delete(
-      'waypoints',
-      where: 'voyage_id = ? AND source = ?',
-      whereArgs: [voyageId, 'recommande'],
+    await _traceErreurs(
+      'deleteWaypointsRecommandesForVoyage',
+      () => db.delete(
+        'waypoints',
+        where: 'voyage_id = ? AND source = ?',
+        whereArgs: [voyageId, 'recommande'],
+      ),
     );
+  }
+
+  /// Encapsule une ecriture en base en traçant l'erreur avec le nom
+  /// de l'operation avant de la propager : sans cela, une exception
+  /// SQLite (colonne manquante, contrainte violee) est avalee par le
+  /// contexte appelant et l'utilisateur ne voit qu'un chargement
+  /// sans fin.
+  Future<T> _traceErreurs<T>(
+    String operation,
+    Future<T> Function() ecriture,
+  ) async {
+    try {
+      return await ecriture();
+    } catch (e, stack) {
+      debugPrint('Erreur base de donnees ($operation) : $e');
+      debugPrintStack(stackTrace: stack, maxFrames: 6);
+      rethrow;
+    }
   }
 }
