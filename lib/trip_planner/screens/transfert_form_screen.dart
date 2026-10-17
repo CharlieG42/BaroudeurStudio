@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../db/trip_planner_database.dart';
 import '../services/elevation_service.dart';
 import '../models/etape.dart';
+import '../models/parametres_planification.dart';
 import '../models/trajet.dart';
 import '../services/brouter_service.dart';
 import '../services/osrm_service.dart';
@@ -111,6 +113,54 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
     return arrivee - depart;
   }
 
+  /// Distance a vol d'oiseau entre les deux etapes (secours).
+  double _distanceHaversineKm() {
+    const rayonTerreKm = 6371.0;
+    final dLat = _degEnRad(
+      widget.etapeArrivee.latitude - widget.etapeDepart.latitude,
+    );
+    final dLon = _degEnRad(
+      widget.etapeArrivee.longitude - widget.etapeDepart.longitude,
+    );
+    final a =
+        (dLat / 2) * (dLat / 2) +
+        _degEnRad(widget.etapeDepart.latitude) *
+            _degEnRad(widget.etapeArrivee.latitude) *
+            (dLon / 2) *
+            (dLon / 2);
+    return 2 * rayonTerreKm * math.asin(math.sqrt(a));
+  }
+
+  static double _degEnRad(double deg) => deg * math.pi / 180.0;
+
+  /// Duree estimee du trajet de secours selon la vitesse moyenne du
+  /// mode (parametres utilisateur si renseignes, sinon vitesses
+  /// classiques : voiture 80 km/h, velo 15 km/h, vtt 12 km/h, marche 4
+  /// km/h).
+  int _dureeEstimeeSecours(ParametresPlanification parametres) {
+    final distanceKm = _distanceHaversineKm();
+    double vitesse;
+    switch (_mode) {
+      case ModeTransport.marche:
+        vitesse = parametres.vitesseMarcheKmh > 0
+            ? parametres.vitesseMarcheKmh
+            : 4.0;
+        break;
+      case ModeTransport.velo:
+        vitesse = parametres.vitesseVeloKmh > 0
+            ? parametres.vitesseVeloKmh
+            : 15.0;
+        break;
+      case ModeTransport.vtt:
+        vitesse = 12.0;
+        break;
+      default:
+        vitesse = 80.0;
+        break;
+    }
+    return (distanceKm / vitesse * 60).round();
+  }
+
   Future<void> _enregistrer() async {
     if (widget.etapeDepart.id == null || widget.etapeArrivee.id == null) {
       return;
@@ -184,12 +234,33 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
           deniveleNegatifM: deniveleNegatif,
           profilAltitudeJson: profilJson,
         ));
-      } else if (widget.trajetExistant?.id != null) {
-        // Echec du calcul (reseau...) : on retire l'ancien trajet plutot
-        // que de laisser une valeur perimee ; la timeline affichera
-        // "trajet non calcule" et l'icone "Recalculer" permettra de
-        // reessayer plus tard.
-        await db.deleteTrajet(widget.trajetExistant!.id!);
+      } else {
+        // Echec du calcul (reseau, serveur...) : on enregistre un
+        // trajet de secours en ligne droite entre les deux etapes
+        // pour que le parcours reste trace sur la carte et que la
+        // zone affiche distance/duree estimees ; le prochain
+        // recalcul reussi remplacera cette estimation.
+        await db.upsertTrajet(Trajet(
+          voyageId: widget.voyageId,
+          etapeDepartId: widget.etapeDepart.id!,
+          etapeArriveeId: widget.etapeArrivee.id!,
+          mode: _mode,
+          distanceKm: _distanceHaversineKm(),
+          dureeMinutes: _dureeEstimeeSecours(parametres),
+          geometrieJson: Trajet.encodePoints([
+            [
+              widget.etapeDepart.latitude,
+              widget.etapeDepart.longitude,
+            ],
+            [
+              widget.etapeArrivee.latitude,
+              widget.etapeArrivee.longitude,
+            ],
+          ]),
+          denivelePositifM: 0,
+          deniveleNegatifM: 0,
+          profilAltitudeJson: '[]',
+        ));
       }
     } else {
       await db.upsertTrajet(Trajet(
