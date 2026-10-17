@@ -147,8 +147,8 @@ class Trajet {
       heureDepart: map['heure_depart'] as String?,
       heureArrivee: map['heure_arrivee'] as String?,
       notes: map['notes'] as String? ?? '',
-      denivelePositifM: (map['denivele_positif_m'] as int? ?? 0),
-      deniveleNegatifM: (map['denivele_negatif_m'] as int? ?? 0),
+      denivelePositifM: ((map['denivele_positif_m'] as num?) ?? 0).toInt(),
+      deniveleNegatifM: ((map['denivele_negatif_m'] as num?) ?? 0).toInt(),
       profilAltitudeJson: map['profil_altitude_json'] as String? ?? '[]',
     );
   }

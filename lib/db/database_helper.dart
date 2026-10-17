@@ -17,6 +17,21 @@ class DatabaseHelper {
 
   DatabaseHelper._internal();
 
+  /// Reproduit l'initialisation complete (schema au complet) sur une
+  /// base neuve, en ignorant le singleton. Utilise par les tests
+  /// d'invariant de schema.
+  Future<Database> ouvrirPourTest(String path) async {
+    return openDatabase(
+      path,
+      version: 4,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+    );
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
