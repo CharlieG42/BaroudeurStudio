@@ -49,6 +49,11 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   final MapController _mapController = MapController();
   final TripCalculationService _calcService = TripCalculationService();
 
+  /// Garde-fou : le recalcul automatique a l'ouverture ne se produit
+  /// qu'une fois par session de l'ecran, pour ne pas boucler si le
+  /// reseau reste indisponible.
+  bool _recalculAutoEffectue = false;
+
   List<Etape> _etapes = [];
 
   /// Etapes racines uniquement (sans sous-etapes), dans l'ordre.
@@ -124,6 +129,31 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       _loading = false;
     });
     _centrerCarte();
+
+    // Certains voyages ont des etapes consecutives sans trajet en
+    // base (calculs ayant echoue avant le correctif de secours, ou
+    // trajets supprimes par un reordonnancement rate) : on relance
+    // un recalcul une seule fois pour retablir le trace.
+    final racines = etapes.where((e) => e.parentId == null).toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+    final pairesAttendues = racines.length - 1;
+    final pairesSansTrajet = <String>{};
+    for (var i = 0; i < racines.length - 1; i++) {
+      final depart = racines[i].id;
+      final arrivee = racines[i + 1].id;
+      if (depart == null || arrivee == null) continue;
+      final cle = '$depart-$arrivee';
+      pairesSansTrajet.add(cle);
+    }
+    for (final trajet in trajets) {
+      pairesSansTrajet.remove('${trajet.etapeDepartId}-${trajet.etapeArriveeId}');
+    }
+    if (pairesAttendues > 0 &&
+        pairesSansTrajet.isNotEmpty &&
+        !_recalculAutoEffectue) {
+      _recalculAutoEffectue = true;
+      await _recalculerTrajets();
+    }
   }
 
   void _centrerCarte() {
