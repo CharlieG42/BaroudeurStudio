@@ -117,7 +117,7 @@ class OsrmService {
     try {
       final response = await http
           .get(uri, headers: _headers)
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['code'] != 'Ok') return null;
