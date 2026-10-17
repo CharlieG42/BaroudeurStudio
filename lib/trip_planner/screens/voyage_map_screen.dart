@@ -146,6 +146,11 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       pairesSansTrajet.add(cle);
     }
     for (final trajet in trajets) {
+      // Un trajet auto-calcule reduit a 2 points est un trace de
+      // secours (ligne droite) : on le considere comme a recalculer.
+      final estSecours =
+          trajet.mode.estAutoCalcule && trajet.points.length <= 2;
+      if (estSecours) continue;
       pairesSansTrajet.remove('${trajet.etapeDepartId}-${trajet.etapeArriveeId}');
     }
     if (pairesAttendues > 0 &&

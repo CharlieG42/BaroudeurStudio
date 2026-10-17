@@ -111,24 +111,28 @@ class TripCalculationService {
       // timeout par paire suivante : on considere le routage
       // indisponible pour le reste du passe et on ecrit directement
       // les trajets de secours (un recalcul ultereur les affinera).
-      final resultat = horsLigne
-          ? null
-          : mode == ModeTransport.vtt
-              ? await _brouter.calculerItineraireVtt(
-                  latDepart: depart.latitude,
-                  lonDepart: depart.longitude,
-                  latArrivee: arrivee.latitude,
-                  lonArrivee: arrivee.longitude,
-                )
-              : await _osrm.calculerItineraire(
-                  mode: mode,
-                  latDepart: depart.latitude,
-                  lonDepart: depart.longitude,
-                  latArrivee: arrivee.latitude,
-                  lonArrivee: arrivee.longitude,
-                  eviterAutoroutes: parametres.eviterAutoroutes,
-                  eviterPeages: parametres.eviterPeages,
-                );
+      Future<ResultatItineraire?> calculer() => mode == ModeTransport.vtt
+          ? _brouter.calculerItineraireVtt(
+              latDepart: depart.latitude,
+              lonDepart: depart.longitude,
+              latArrivee: arrivee.latitude,
+              lonArrivee: arrivee.longitude,
+            )
+          : _osrm.calculerItineraire(
+              mode: mode,
+              latDepart: depart.latitude,
+              lonDepart: depart.longitude,
+              latArrivee: arrivee.latitude,
+              lonArrivee: arrivee.longitude,
+              eviterAutoroutes: parametres.eviterAutoroutes,
+              eviterPeages: parametres.eviterPeages,
+            );
+      // Une seconde tentative evite de basculer tout le voyage en
+      // lignes droites sur un simple hoquet reseau.
+      ResultatItineraire? resultat;
+      if (!horsLigne) {
+        resultat = await calculer() ?? await calculer();
+      }
       if (resultat == null) {
         horsLigne = true;
       }
