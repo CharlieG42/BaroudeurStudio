@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/trajet.dart';
 
@@ -118,9 +119,17 @@ class OsrmService {
       final response = await http
           .get(uri, headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        debugPrint('OsrmService: HTTP ${response.statusCode} pour $uri '
+            '- corps: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+        return null;
+      }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['code'] != 'Ok') return null;
+      if (data['code'] != 'Ok') {
+        debugPrint('OsrmService: code ${data['code']} '
+           '(${data['message'] ?? 'sans message'}) pour $uri');
+        return null;
+      }
       final routes = data['routes'] as List<dynamic>;
       if (routes.isEmpty) return null;
       final route = routes.first as Map<String, dynamic>;
@@ -143,7 +152,8 @@ class OsrmService {
         dureeMinutes: (dureeSecondes / 60.0).round(),
         points: points,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('OsrmService: echec requete $uri - $e');
       return null;
     }
   }
