@@ -114,12 +114,24 @@ class _VoyageListScreenState extends State<VoyageListScreen> {
 
   Future<void> _creerVoyageDemo() async {
     setState(() => _loading = true);
-    final id = await DemoSeedService().creerVoyageDemoUsa();
-    await _loadVoyages();
-    if (!mounted) return;
-    final voyage = await TripPlannerDatabase.instance.getVoyage(id);
-    if (voyage != null) {
-      _openVoyageMap(voyage);
+    try {
+      final id = await DemoSeedService().creerVoyageDemoUsa();
+      await _loadVoyages();
+      if (!mounted) return;
+      final voyage = await TripPlannerDatabase.instance.getVoyage(id);
+      if (voyage != null) {
+        _openVoyageMap(voyage);
+      }
+    } catch (e) {
+      // Ne jamais laisser le spinner tourner indefiniment.
+      debugPrint('Creation du voyage de demo echouee : $e');
+      await _loadVoyages();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la creation du voyage : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 

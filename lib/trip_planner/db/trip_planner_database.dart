@@ -46,6 +46,12 @@ class TripPlannerDatabase {
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
+      // Repare les bases creees par une installation neuve en v7 : la
+      // table trajets y etait creee sans les colonnes de denivele, ce
+      // qui faisait echouer chaque enregistrement de trajet.
+      onOpen: (db) async {
+        await _assurerColonnesTrajets(db);
+      },
     );
   }
 
@@ -95,6 +101,12 @@ class TripPlannerDatabase {
     if (oldVersion < 7) {
       await _addColumnIfMissing(db, 'etapes', 'parent_id', 'INTEGER');
     }
+  }
+
+  Future<void> _assurerColonnesTrajets(Database db) async {
+    await _addColumnIfMissing(db, 'trajets', 'denivele_positif_m', 'INTEGER');
+    await _addColumnIfMissing(db, 'trajets', 'denivele_negatif_m', 'INTEGER');
+    await _addColumnIfMissing(db, 'trajets', 'profil_altitude_json', 'TEXT');
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas
@@ -205,6 +217,9 @@ class TripPlannerDatabase {
         heure_depart TEXT,
         heure_arrivee TEXT,
         notes TEXT,
+        denivele_positif_m INTEGER,
+        denivele_negatif_m INTEGER,
+        profil_altitude_json TEXT,
         FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE,
         FOREIGN KEY (etape_depart_id) REFERENCES etapes (id) ON DELETE CASCADE,
         FOREIGN KEY (etape_arrivee_id) REFERENCES etapes (id) ON DELETE CASCADE
