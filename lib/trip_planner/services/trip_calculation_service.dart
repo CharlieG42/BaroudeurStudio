@@ -92,6 +92,9 @@ class TripCalculationService {
 
     final parametres = await _db.getParametres();
     int echecs = 0;
+    // Passe a true des le premier echec reseau : les paires
+    // suivantes sont ecrites en secours sans nouvelle tentative.
+    var horsLigne = false;
     for (var i = 0; i < etapes.length - 1; i++) {
       final Etape depart = etapes[i];
       final Etape arrivee = etapes[i + 1];
@@ -104,22 +107,31 @@ class TripCalculationService {
         continue; // transfert manuel : on ne touche pas.
       }
 
-      final resultat = mode == ModeTransport.vtt
-          ? await _brouter.calculerItineraireVtt(
-              latDepart: depart.latitude,
-              lonDepart: depart.longitude,
-              latArrivee: arrivee.latitude,
-              lonArrivee: arrivee.longitude,
-            )
-          : await _osrm.calculerItineraire(
-              mode: mode,
-              latDepart: depart.latitude,
-              lonDepart: depart.longitude,
-              latArrivee: arrivee.latitude,
-              lonArrivee: arrivee.longitude,
-              eviterAutoroutes: parametres.eviterAutoroutes,
-              eviterPeages: parametres.eviterPeages,
-            );
+      // Apres un premier echec reseau, inutile de re-atendre un
+      // timeout par paire suivante : on considere le routage
+      // indisponible pour le reste du passe et on ecrit directement
+      // les trajets de secours (un recalcul ultereur les affinera).
+      final resultat = horsLigne
+          ? null
+          : mode == ModeTransport.vtt
+              ? await _brouter.calculerItineraireVtt(
+                  latDepart: depart.latitude,
+                  lonDepart: depart.longitude,
+                  latArrivee: arrivee.latitude,
+                  lonArrivee: arrivee.longitude,
+                )
+              : await _osrm.calculerItineraire(
+                  mode: mode,
+                  latDepart: depart.latitude,
+                  lonDepart: depart.longitude,
+                  latArrivee: arrivee.latitude,
+                  lonArrivee: arrivee.longitude,
+                  eviterAutoroutes: parametres.eviterAutoroutes,
+                  eviterPeages: parametres.eviterPeages,
+                );
+      if (resultat == null) {
+        horsLigne = true;
+      }
 
       // Meme sans reseau (ou si le serveur refuse la requete), on
       // enregistre un trajet de secours en ligne droite entre les
