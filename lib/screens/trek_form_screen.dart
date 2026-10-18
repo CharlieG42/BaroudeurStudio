@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../db/database_helper.dart';
+import '../models/totaux_trek.dart';
 import '../models/trek.dart';
 
 class TrekFormScreen extends StatefulWidget {
@@ -29,6 +30,36 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
   DateTime? _dateFin;
 
   bool get _isEditing => widget.trek != null;
+
+  /// Remplit distance et denivelé positif avec la somme des jours du
+  /// trek. Les champs restent modifiables avant l'enregistrement.
+  Future<void> _calculerDepuisJours() async {
+    final jours =
+        await DatabaseHelper.instance.getJoursForTrek(widget.trek!.id!);
+    final totaux = TotauxTrek.depuisJours(jours);
+    if (!mounted) return;
+    if (!totaux.estRenseigne) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucun jour ne renseigne de distance ou de dénivelé.'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      if (totaux.distanceKm != null) {
+        _distanceCtrl.text = totaux.distanceKm!.toStringAsFixed(2);
+      }
+      if (totaux.denivelePositifM != null) {
+        _deniveleCtrl.text = totaux.denivelePositifM.toString();
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Totaux calculés sur ${totaux.nombreJours} jour(s).'),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -228,6 +259,23 @@ class _TrekFormScreenState extends State<TrekFormScreen> {
                 ),
               ],
             ),
+            if (_isEditing)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _calculerDepuisJours,
+                  icon: const Icon(Icons.functions),
+                  label: const Text('Calculer depuis les jours'),
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Laisse vide pour utiliser la somme des jours.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _modeVoyageCtrl,
