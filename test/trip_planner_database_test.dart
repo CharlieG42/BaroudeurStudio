@@ -86,7 +86,8 @@ void main() {
 
   Future<Database> migrerDepuisV4() async {
     // Schema tel que produit par la creation en v4 (colonnes v2-v3
-    // incluses, ni waypoints ni parametres ni deniveles).
+    // incluses, table waypoints introduite en v4 ; ni parametres ni
+    // deniveles).
     final db = await openDatabase('${tempDir.path}/v4.db', version: 4,
         onCreate: (db, version) async {
       await db.execute('''
@@ -147,6 +148,20 @@ void main() {
           taille_octets INTEGER NOT NULL DEFAULT 0,
           date_ajout TEXT NOT NULL,
           FOREIGN KEY (etape_id) REFERENCES etapes (id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE waypoints (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          voyage_id INTEGER NOT NULL,
+          nom TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          source TEXT NOT NULL DEFAULT 'recommande',
+          categorie TEXT NOT NULL DEFAULT '',
+          notes TEXT NOT NULL DEFAULT '',
+          osm_id TEXT,
+          FOREIGN KEY (voyage_id) REFERENCES voyages (id) ON DELETE CASCADE
         )
       ''');
     });
