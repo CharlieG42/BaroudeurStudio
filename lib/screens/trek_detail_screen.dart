@@ -360,11 +360,15 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
     final totaux = TotauxTrek.depuisJours(_jours);
     final chips = <Widget>[];
 
-    Widget chip(String texte, {required bool auto}) => Chip(
-          avatar: auto ? const Icon(Icons.functions, size: 16) : null,
-          label: Text(texte),
-          tooltip: auto ? 'Calculé depuis les jours' : null,
-        );
+    Widget chip(String texte, {required bool auto}) {
+      final c = Chip(
+        avatar: auto ? const Icon(Icons.functions, size: 16) : null,
+        label: Text(texte),
+      );
+      return auto
+          ? Tooltip(message: 'Calculé depuis les jours', child: c)
+          : c;
+    }
 
     if (_trek.distanceKm != null) {
       chips.add(chip(formaterDistanceKm(_trek.distanceKm!), auto: false));

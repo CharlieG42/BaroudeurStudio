@@ -128,8 +128,10 @@ class _JourTraceScreenState extends State<JourTraceScreen> {
             _marqueur(points.last, Icons.flag, Colors.red.shade700, 'Arrivée'),
           ],
         ),
-        const SimpleAttributionWidget(
-          source: Text('© OpenStreetMap'),
+        const RichAttributionWidget(
+          attributions: [
+            TextSourceAttribution('© les contributeurs OpenStreetMap'),
+          ],
         ),
       ],
     );
