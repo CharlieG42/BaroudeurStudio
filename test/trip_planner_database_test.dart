@@ -214,8 +214,9 @@ void main() {
     // Reproduit le bug : base creee neuve en v7 sans les colonnes de
     // denivele dans trajets. L'ouverture doit les rajouter.
     final path = '${tempDir.path}/v7_buggy.db';
-    final db = await openDatabase(path, version: 7, onCreate: (db, version) {
-      db.execute('''
+    final db = await openDatabase(path, version: 7,
+        onCreate: (db, version) async {
+      await db.execute('''
         CREATE TABLE voyages (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           titre TEXT NOT NULL,
@@ -224,7 +225,7 @@ void main() {
           notes TEXT
         )
       ''');
-      db.execute('''
+      await db.execute('''
         CREATE TABLE trajets (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           voyage_id INTEGER NOT NULL,

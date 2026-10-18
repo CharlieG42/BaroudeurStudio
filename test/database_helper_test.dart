@@ -32,6 +32,9 @@ void main() {
 
   /// Schema de la version 1 (avant medias et colonnes de denivele
   /// des jours), pour forcer un upgrade complet 1 -> 4.
+  /// La table treks possedait deja distance_km, denivele_positif_m,
+  /// mode_voyage et compagnons des la premiere version (aucune
+  /// migration ne les ajoute) : seul preambule arrive en v4.
   Future<Database> migrerDepuisV1() async {
     final db = await openDatabase('${tempDir.path}/v1.db', version: 1,
         onCreate: (db, version) async {
@@ -42,7 +45,11 @@ void main() {
           date_debut TEXT NOT NULL,
           date_fin TEXT NOT NULL,
           region TEXT NOT NULL,
-          pays TEXT NOT NULL
+          pays TEXT NOT NULL,
+          distance_km REAL,
+          denivele_positif_m INTEGER,
+          mode_voyage TEXT,
+          compagnons TEXT
         )
       ''');
       await db.execute('''

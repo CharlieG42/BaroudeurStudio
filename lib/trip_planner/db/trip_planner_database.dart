@@ -226,13 +226,40 @@ class TripPlannerDatabase {
       final columns = await db.rawQuery('PRAGMA table_info(${entry.key})');
       final existing = columns.map((c) => c['name'] as String).toSet();
       for (final column in entry.value.entries) {
-        if (!existing.contains(column.key)) {
+        if (existing.contains(column.key)) continue;
+        final type = _typeReparable(column.value);
+        if (type == null) {
+          debugPrint('[TripPlannerDatabase] Colonne ${entry.key}.'
+              '${column.key} absente et non reparable par ALTER TABLE');
+          continue;
+        }
+        try {
           await db.execute(
-            'ALTER TABLE ${entry.key} ADD COLUMN ${column.key} ${column.value}',
+            'ALTER TABLE ${entry.key} ADD COLUMN ${column.key} $type',
           );
+        } catch (e, st) {
+          // Ne jamais bloquer l'ouverture de la base pour une reparation.
+          debugPrint('[TripPlannerDatabase] Reparation de '
+              '${entry.key}.${column.key} impossible : $e\n$st');
         }
       }
     }
+  }
+
+  /// Type utilisable dans un ALTER TABLE ... ADD COLUMN pour la
+  /// definition [definition] de [_schemaTables], ou null si la colonne
+  /// ne peut pas etre ajoutee apres coup (cle primaire). SQLite refuse
+  /// d'ajouter une colonne NOT NULL sans valeur par defaut : elle est
+  /// alors ajoutee sans la contrainte NOT NULL.
+  static String? _typeReparable(String definition) {
+    final upper = definition.toUpperCase();
+    if (upper.contains('PRIMARY KEY')) return null;
+    if (upper.contains('NOT NULL') && !upper.contains('DEFAULT')) {
+      return definition
+          .replaceAll(RegExp('NOT NULL', caseSensitive: false), '')
+          .trim();
+    }
+    return definition;
   }
 
   /// Ajoute une colonne a une table existante si elle n'existe pas
