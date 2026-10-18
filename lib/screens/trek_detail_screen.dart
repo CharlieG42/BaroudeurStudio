@@ -9,11 +9,13 @@ import 'package:intl/intl.dart';
 import '../db/database_helper.dart';
 import '../models/trek.dart';
 import '../models/jour_trek.dart';
+import '../models/totaux_trek.dart';
 import '../services/trek_export_service.dart';
 import '../widgets/export_odp_button.dart';
 import '../widgets/odp_settings_button.dart';
 import 'trek_form_screen.dart';
 import 'jour_form_screen.dart';
+import 'jour_trace_screen.dart';
 
 class TrekDetailScreen extends StatefulWidget {
   final Trek trek;
@@ -262,24 +264,26 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
                                     : '${jour.lieuDepart} → ${jour.lieuArrivee}',
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              subtitle: Text(
-                                jour.resume.isEmpty
-                                    ? 'Pas de résumé'
-                                    : jour.resume,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              subtitle: _buildJourSubtitle(jour),
                               isThreeLine: true,
                               trailing: PopupMenuButton<String>(
                                 onSelected: (value) {
                                   if (value == 'edit') {
                                     _editJour(jour);
+                                  } else if (value == 'trace') {
+                                    _voirTrace(jour);
                                   } else if (value == 'delete') {
                                     _deleteJour(jour);
                                   }
                                 },
                                 itemBuilder: (ctx) => [
                                   const PopupMenuItem(value: 'edit', child: Text('Modifier')),
+                                  if (jour.cheminGpx != null &&
+                                      jour.cheminGpx!.isNotEmpty)
+                                    const PopupMenuItem(
+                                      value: 'trace',
+                                      child: Text('Voir la trace'),
+                                    ),
                                   const PopupMenuItem(value: 'delete', child: Text('Supprimer')),
                                 ],
                               ),
@@ -299,6 +303,88 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
     );
   }
 
+  void _voirTrace(JourTrek jour) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JourTraceScreen(
+          cheminGpx: jour.cheminGpx!,
+          titre: 'Trace du jour ${jour.numeroJour}',
+        ),
+      ),
+    );
+  }
+
+  /// Ligne de statistiques du jour (distance, denivelés, trace GPX)
+  /// suivie du resume.
+  Widget _buildJourSubtitle(JourTrek jour) {
+    final stats = <String>[
+      if (jour.distanceKm != null) formaterDistanceKm(jour.distanceKm!),
+      if (jour.denivelePositifM != null) '+${jour.denivelePositifM} m',
+      if (jour.deniveleNegatifM != null) '-${jour.deniveleNegatifM} m',
+    ];
+    final aGpx = jour.cheminGpx != null && jour.cheminGpx!.isNotEmpty;
+    final resume = Text(
+      jour.resume.isEmpty ? 'Pas de résumé' : jour.resume,
+      maxLines: stats.isEmpty && !aGpx ? 2 : 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    if (stats.isEmpty && !aGpx) return resume;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (aGpx) ...[
+              const Icon(Icons.route, size: 14),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                stats.isEmpty ? 'Trace GPX' : stats.join(' · '),
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        resume,
+      ],
+    );
+  }
+
+  /// Distance et denivelés du trek : la valeur saisie dans la fiche du
+  /// trek si elle existe, sinon la somme des jours (marquee d'une
+  /// icone "somme" pour la distinguer d'une saisie manuelle).
+  List<Widget> _buildTotauxChips() {
+    final totaux = TotauxTrek.depuisJours(_jours);
+    final chips = <Widget>[];
+
+    Widget chip(String texte, {required bool auto}) => Chip(
+          avatar: auto ? const Icon(Icons.functions, size: 16) : null,
+          label: Text(texte),
+          tooltip: auto ? 'Calculé depuis les jours' : null,
+        );
+
+    if (_trek.distanceKm != null) {
+      chips.add(chip(formaterDistanceKm(_trek.distanceKm!), auto: false));
+    } else if (totaux.distanceKm != null) {
+      chips.add(chip(formaterDistanceKm(totaux.distanceKm!), auto: true));
+    }
+
+    if (_trek.denivelePositifM != null) {
+      chips.add(chip('+${_trek.denivelePositifM} m', auto: false));
+    } else if (totaux.denivelePositifM != null) {
+      chips.add(chip('+${totaux.denivelePositifM} m', auto: true));
+    }
+
+    // Le denivelé negatif n'existe qu'au niveau des jours.
+    if (totaux.deniveleNegatifM != null) {
+      chips.add(chip('-${totaux.deniveleNegatifM} m', auto: true));
+    }
+    return chips;
+  }
+
   Widget _buildSummaryCard() {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -316,10 +402,7 @@ class _TrekDetailScreenState extends State<TrekDetailScreen> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              if (_trek.distanceKm != null)
-                Chip(label: Text('${_trek.distanceKm} km')),
-              if (_trek.denivelePositifM != null)
-                Chip(label: Text('+${_trek.denivelePositifM} m')),
+              ..._buildTotauxChips(),
               if (_trek.modeVoyage.isNotEmpty)
                 Chip(label: Text(_trek.modeVoyage)),
               if (_trek.compagnons.isNotEmpty)

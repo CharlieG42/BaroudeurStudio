@@ -12,6 +12,7 @@ import '../services/drive/drive_backup_service.dart';
 import '../services/trek_export_service.dart';
 import '../widgets/media_gallery.dart';
 import '../widgets/voice_note_recorder.dart';
+import 'jour_trace_screen.dart';
 
 class JourFormScreen extends StatefulWidget {
   final int trekId;
@@ -125,6 +126,21 @@ class _JourFormScreenState extends State<JourFormScreen> {
     if (picked != null) {
       setState(() => _date = picked);
     }
+  }
+
+  /// Ouvre la carte et le profil d'altitude de la trace GPX du jour.
+  void _voirTrace() {
+    final chemin = _cheminGpx;
+    if (chemin == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JourTraceScreen(
+          cheminGpx: chemin,
+          titre: 'Trace du jour ${_numeroCtrl.text.trim()}',
+        ),
+      ),
+    );
   }
 
   /// Ouvre un sélecteur de fichier pour choisir un fichier .gpx, calcule
@@ -393,7 +409,13 @@ class _JourFormScreenState extends State<JourFormScreen> {
                     : 'Importer une trace GPX',
               ),
             ),
-            if (_cheminGpx != null)
+            if (_cheminGpx != null) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: _voirTrace,
+                icon: const Icon(Icons.map),
+                label: const Text('Voir la carte et le profil'),
+              ),
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
@@ -401,6 +423,7 @@ class _JourFormScreenState extends State<JourFormScreen> {
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [
