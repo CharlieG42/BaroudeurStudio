@@ -123,11 +123,11 @@ class _TransfertFormScreenState extends State<TransfertFormScreen> {
       widget.etapeArrivee.longitude - widget.etapeDepart.longitude,
     );
     final a =
-        (dLat / 2) * (dLat / 2) +
-        _degEnRad(widget.etapeDepart.latitude) *
-            _degEnRad(widget.etapeArrivee.latitude) *
-            (dLon / 2) *
-            (dLon / 2);
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degEnRad(widget.etapeDepart.latitude)) *
+            math.cos(_degEnRad(widget.etapeArrivee.latitude)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
     return 2 * rayonTerreKm * math.asin(math.sqrt(a));
   }
 
