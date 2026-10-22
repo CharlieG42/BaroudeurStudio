@@ -148,7 +148,7 @@ class TripCalculationService {
             [arrivee.latitude, arrivee.longitude],
           ];
       final distanceKm = resultat?.distanceKm ??
-          _distanceHaversineKm(
+          distanceHaversineKm(
             depart.latitude,
             depart.longitude,
             arrivee.latitude,
@@ -208,7 +208,7 @@ class TripCalculationService {
   }
 
   /// Distance a vol d'oiseau (formule de haversine) entre deux points.
-  static double _distanceHaversineKm(
+  static double distanceHaversineKm(
     double lat1,
     double lon1,
     double lat2,
@@ -218,11 +218,11 @@ class TripCalculationService {
     final dLat = _degEnRad(lat2 - lat1);
     final dLon = _degEnRad(lon2 - lon1);
     final a =
-        (dLat / 2) * (dLat / 2) +
-            _degEnRad(lat1) *
-                _degEnRad(lat2) *
-                (dLon / 2) *
-                (dLon / 2);
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+            math.cos(_degEnRad(lat1)) *
+                math.cos(_degEnRad(lat2)) *
+                math.sin(dLon / 2) *
+                math.sin(dLon / 2);
     return 2 * rayonTerreKm * math.asin(math.sqrt(a));
   }
 
