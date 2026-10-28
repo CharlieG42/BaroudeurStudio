@@ -27,6 +27,12 @@ class EtapeFormScreen extends StatefulWidget {
   final String? dateMinAutorisee; // borne basse du calendrier (ISO)
   final String? dateMaxAutorisee; // borne haute du calendrier (ISO)
 
+  /// Etapes du voyage. Si fournie pour une creation sans [parentId]
+  /// impose (clic sur la carte, bouton "Ajouter une etape", recherche),
+  /// le formulaire propose de rattacher la nouvelle etape a une etape
+  /// visite existante pour en faire une sous-etape.
+  final List<Etape> etapesVoyage;
+
   const EtapeFormScreen({
     super.key,
     required this.voyageId,
@@ -38,6 +44,7 @@ class EtapeFormScreen extends StatefulWidget {
     this.parentId,
     this.dateMinAutorisee,
     this.dateMaxAutorisee,
+    this.etapesVoyage = const [],
   });
 
   @override
@@ -45,13 +52,37 @@ class EtapeFormScreen extends StatefulWidget {
 }
 
 class _EtapeFormScreenState extends State<EtapeFormScreen> {
+  /// Etape parente choisie dans le formulaire (ou imposee par
+  /// [EtapeFormScreen.parentId]). null = etape principale.
+  int? _parentId;
+
+  /// Le choix de l'etape parente n'est propose qu'a la creation, quand
+  /// aucun parent n'est impose et qu'il existe au moins une visite.
+  bool get _choixParentPossible =>
+      !_isEdition && widget.parentId == null && _parentsPossibles.isNotEmpty;
+
+  /// Etapes pouvant recevoir des sous-etapes : etapes principales de
+  /// type visite deja enregistrees (meme regle que le bouton +).
+  List<Etape> get _parentsPossibles => widget.etapesVoyage
+      .where((e) =>
+          e.parentId == null && e.type == TypeEtape.visite && e.id != null)
+      .toList()
+    ..sort((a, b) => a.ordre.compareTo(b.ordre));
+
+  /// Parente choisie via le selecteur du formulaire, null sinon.
+  Etape? get _parenteChoisie => _choixParentPossible && _parentId != null
+      ? _parentsPossibles.where((e) => e.id == _parentId).firstOrNull
+      : null;
+
   /// Bornes du calendrier : dates du voyage pour une etape racine,
   /// creneau de l'etape parente pour une sous-etape.
   DateTime get _dateMin =>
-      DateTime.tryParse(widget.dateMinAutorisee ?? '') ??
+      DateTime.tryParse(_parenteChoisie?.date ?? widget.dateMinAutorisee ?? '') ??
       DateTime(2020);
   DateTime get _dateMax =>
-      DateTime.tryParse(widget.dateMaxAutorisee ?? '') ??
+      DateTime.tryParse(_parenteChoisie?.dateDepartEffective ??
+          widget.dateMaxAutorisee ??
+          '') ??
       DateTime(2100);
 
   /// La date d'arrivee doit rester dans le creneau autorise.
@@ -88,6 +119,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
   @override
   void initState() {
     super.initState();
+    _parentId = widget.etape?.parentId ?? widget.parentId;
     final etape = widget.etape;
     if (etape != null) {
       _nomController.text = etape.nom;
@@ -288,7 +320,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            widget.parentId != null
+            _parentId != null
                 ? 'La date doit rester dans le creneau de l\'etape visite.'
                 : 'La date doit rester dans les dates du voyage.',
           ),
@@ -305,7 +337,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
     final etape = Etape(
       id: widget.etape?.id,
       voyageId: widget.voyageId,
-      ordre: widget.etape?.ordre ?? widget.ordre,
+      ordre: widget.etape?.ordre ?? _ordrePourCreation(),
       nom: _nomController.text.trim(),
       latitude: _latitude!,
       longitude: _longitude!,
@@ -316,7 +348,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
       dateDepart: dateDepartTexte,
       heureDepart: estVisite ? _formatHeure(_heureDepart) : null,
       decalageHoraireMinutes: _decalageHoraireEnMinutes(),
-      parentId: widget.etape?.parentId ?? widget.parentId,
+      parentId: _parentId,
     );
 
     if (_isEdition) {
@@ -336,6 +368,91 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
     Navigator.pop(context, true);
   }
 
+  /// Ordre d'une nouvelle etape : celui fourni par l'appelant, ou la
+  /// fin de la liste des sous-etapes si une parente a ete choisie dans
+  /// le formulaire.
+  int _ordrePourCreation() {
+    final parente = _parenteChoisie;
+    if (parente == null) return widget.ordre;
+    return widget.etapesVoyage.where((e) => e.parentId == parente.id).length;
+  }
+
+  void _changerParent(int? parentId) {
+    setState(() {
+      _parentId = parentId;
+      // La date doit rester dans le creneau de la nouvelle parente
+      // (ou du voyage si on revient a une etape principale).
+      if (_date != null && _dateHorsCreneau(_date!)) {
+        _date = _parenteChoisie != null ? _dateMin : null;
+      } else if (_date == null && _parenteChoisie != null) {
+        // Pre-remplit avec le jour d'arrivee de la visite.
+        _date = _dateMin;
+      }
+      if (_dateDepart != null &&
+          (_dateDepart!.isAfter(_dateMax) ||
+              (_date != null && _dateDepart!.isBefore(_date!)))) {
+        _dateDepart = null;
+      }
+    });
+  }
+
+  String _libelleParente(Etape e) {
+    final arrivee = DateTime.tryParse(e.date);
+    final depart = DateTime.tryParse(e.dateDepartEffective);
+    String court(DateTime? d) => d == null
+        ? ''
+        : '${d.day.toString().padLeft(2, '0')}/'
+            '${d.month.toString().padLeft(2, '0')}';
+    final periode = e.dateDepartEffective == e.date
+        ? court(arrivee)
+        : '${court(arrivee)} → ${court(depart)}';
+    return periode.isEmpty ? e.nom : '${e.nom} ($periode)';
+  }
+
+  Widget _buildChoixParent() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<int?>(
+            initialValue: _parentId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Etape parente',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.account_tree_outlined),
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Aucune (etape principale)'),
+              ),
+              for (final e in _parentsPossibles)
+                DropdownMenuItem<int?>(
+                  value: e.id,
+                  child: Text(
+                    _libelleParente(e),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: _changerParent,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              _parentId == null
+                  ? 'Choisis une visite pour en faire une sous-etape.'
+                  : 'Sous-etape : la date est limitee au sejour de la visite.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -343,7 +460,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
         title: Text(
           _isEdition
               ? 'Modifier l\'etape'
-              : (widget.parentId != null
+              : (_parentId != null
                   ? 'Nouvelle sous-etape'
                   : 'Nouvelle etape'),
         ),
@@ -353,6 +470,7 @@ class _EtapeFormScreenState extends State<EtapeFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_choixParentPossible) _buildChoixParent(),
             TextFormField(
               controller: _rechercheController,
               decoration: InputDecoration(
