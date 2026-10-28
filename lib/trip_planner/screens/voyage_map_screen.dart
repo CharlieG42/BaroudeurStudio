@@ -14,6 +14,7 @@ import '../models/waypoint.dart';
 import '../services/nominatim_service.dart';
 import '../services/trip_calculation_service.dart';
 import '../services/geolocalisation_service.dart';
+import '../services/liaison_sous_etape_service.dart';
 import '../services/tuiles_hors_ligne_service.dart';
 import '../services/waypoint_suggestion_service.dart';
 import 'etape_form_screen.dart';
@@ -70,6 +71,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   bool _afficherWaypoints = true;
   bool _chargementSuggestions = false;
   Color _couleurParcours = ParametresPlanification().couleurParcours;
+
+  /// Vitesse de marche des parametres, pour estimer les liaisons
+  /// entre une visite et ses sous-etapes.
+  double _vitesseMarcheKmh = ParametresPlanification().vitesseMarcheKmh;
 
   // Mode "ajout de waypoint personnel" : actif, un simple tap sur la
   // carte cree un waypoint personnel (epingle libre) au lieu d'ouvrir
@@ -679,6 +684,88 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
     }
   }
 
+  /// Sous-etapes d'une visite, dans l'ordre d'affichage.
+  List<Etape> _sousEtapesDe(Etape parente) {
+    if (parente.id == null) return [];
+    return _etapes.where((e) => e.parentId == parente.id).toList()
+      ..sort((a, b) => a.ordre.compareTo(b.ordre));
+  }
+
+  /// Marqueurs des sous-etapes : plus petits que ceux des etapes
+  /// principales, numerotes "2.1", "2.2"... Les sous-etapes placees au
+  /// meme endroit que leur visite ne sont pas dessinees (elles seraient
+  /// cachees sous le marqueur de la visite).
+  List<Marker> _marqueursSousEtapes() {
+    final marqueurs = <Marker>[];
+    final racines = _etapesRacines;
+    for (var i = 0; i < racines.length; i++) {
+      final parente = racines[i];
+      final enfants = _sousEtapesDe(parente);
+      for (var j = 0; j < enfants.length; j++) {
+        final etape = enfants[j];
+        if (_memePosition(parente, etape)) continue;
+        marqueurs.add(Marker(
+          point: LatLng(etape.latitude, etape.longitude),
+          width: 34,
+          height: 22,
+          child: GestureDetector(
+            onTap: () => _afficherDetailEtape(etape),
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: _couleurEtape(parente.type),
+                  width: 2,
+                ),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 2),
+                ],
+              ),
+              child: Text(
+                '${i + 1}.${j + 1}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: _couleurEtape(parente.type),
+                ),
+              ),
+            ),
+          ),
+        ));
+      }
+    }
+    return marqueurs;
+  }
+
+  /// Liens en pointilles visite -> sous-etape 1 -> sous-etape 2 ...
+  List<Polyline> _liensSousEtapes() {
+    final liens = <Polyline>[];
+    for (final parente in _etapesRacines) {
+      final enfants = _sousEtapesDe(parente);
+      if (enfants.isEmpty) continue;
+      final points = [
+        LatLng(parente.latitude, parente.longitude),
+        for (final e in enfants) LatLng(e.latitude, e.longitude),
+      ];
+      // Inutile de tracer si toutes les sous-etapes sont sur la visite.
+      if (enfants.every((e) => _memePosition(parente, e))) continue;
+      liens.add(Polyline(
+        points: points,
+        strokeWidth: 2,
+        color: _couleurEtape(parente.type).withValues(alpha: 0.8),
+        pattern: const StrokePattern.dotted(),
+      ));
+    }
+    return liens;
+  }
+
+  bool _memePosition(Etape a, Etape b) =>
+      LiaisonSousEtape.distanceHaversineKm(
+          a.latitude, a.longitude, b.latitude, b.longitude) <
+      LiaisonSousEtape.seuilMemeLieuKm;
+
   Trajet? _trajetDepuis(Etape etape) {
     if (etape.id == null) return null;
     for (final t in _trajets) {
@@ -710,7 +797,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
   Future<void> _chargerCouleurParcours() async {
     final parametres = await TripPlannerDatabase.instance.getParametres();
     if (!mounted) return;
-    setState(() => _couleurParcours = parametres.couleurParcours);
+    setState(() {
+      _couleurParcours = parametres.couleurParcours;
+      _vitesseMarcheKmh = parametres.vitesseMarcheKmh;
+    });
   }
 
   IconData _iconeMode(ModeTransport mode) {
@@ -1182,6 +1272,10 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
                     ),
                   ],
                 ),
+              if (_liensSousEtapes().isNotEmpty)
+                PolylineLayer(polylines: _liensSousEtapes()),
+              if (_marqueursSousEtapes().isNotEmpty)
+                MarkerLayer(markers: _marqueursSousEtapes()),
               MarkerLayer(
                 markers: _etapesRacines.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -1863,34 +1957,61 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
       itemBuilder: (context, index) {
         final ligne = lignes[index];
         final etape = ligne.etape;
-        final trajet = _trajetDepuis(etape);
-        final etapeSuivante =
-            index < lignes.length - 1 && !lignes[index + 1].estSousEtape
-                ? lignes[index + 1].etape
-                : null;
+        final suivante = index < lignes.length - 1 ? lignes[index + 1] : null;
+
+        // Ce qui s'affiche sous la ligne :
+        // - vers une sous-etape : liaison estimee (meme visite) ;
+        // - vers l'etape principale suivante : trajet calcule, qui part
+        //   de la visite (affiche sous sa derniere sous-etape le cas
+        //   echeant).
+        Widget? liaison;
+        if (suivante != null && suivante.estSousEtape) {
+          liaison = _buildLigneLiaison(
+            etape,
+            suivante.etape,
+            indent: ligne.estSousEtape ? 92 : 72,
+          );
+        } else if (suivante != null) {
+          final depart = ligne.estSousEtape
+              ? racines.where((r) => r.id == etape.parentId).firstOrNull
+              : etape;
+          if (depart != null) {
+            liaison = _buildLigneTrajet(
+              depart,
+              suivante.etape,
+              indent: ligne.estSousEtape ? 92 : 72,
+            );
+          }
+        }
 
         if (ligne.estSousEtape) {
-          return Padding(
+          return Column(
             key: ValueKey('sous_${etape.id ?? etape.hashCode}'),
-            padding: const EdgeInsets.only(left: 56),
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.subdirectory_arrow_right,
-                  size: 20, color: Colors.grey),
-              title: Text(
-                etape.nom,
-                style: const TextStyle(fontSize: 14),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 56),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.subdirectory_arrow_right,
+                      size: 20, color: Colors.grey),
+                  title: Text(
+                    etape.nom,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    _formatPeriode(etape),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    onPressed: () => _afficherDetailEtape(etape),
+                  ),
+                  onTap: () => _modifierEtape(etape),
+                ),
               ),
-              subtitle: Text(
-                _formatPeriode(etape),
-                style: const TextStyle(fontSize: 11),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.more_vert, size: 18),
-                onPressed: () => _afficherDetailEtape(etape),
-              ),
-              onTap: () => _modifierEtape(etape),
-            ),
+              if (liaison != null) liaison,
+            ],
           );
         }
 
@@ -1925,48 +2046,7 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
               ),
               onTap: () => _modifierEtape(etape),
             ),
-            if (etapeSuivante != null)
-              InkWell(
-                onTap: () {
-                  final t = _trajetDepuis(etape);
-                  if (t != null && t.mode.estAutoCalcule) {
-                    _afficherProfilTrajet(t, etape, etapeSuivante);
-                  } else {
-                    _modifierTransfert(etape, etapeSuivante);
-                  }
-                },
-                onLongPress: () => _modifierTransfert(etape, etapeSuivante),
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 72,
-                    bottom: 8,
-                    top: 2,
-                    right: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        trajet != null
-                            ? _iconeMode(trajet.mode)
-                            : Icons.directions_car_outlined,
-                        size: 16,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _libelleTrajet(trajet),
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.edit, size: 14, color: Colors.grey),
-                    ],
-                  ),
-                ),
-              ),
+            if (liaison != null) liaison,
           ],
         );
       },
@@ -2036,6 +2116,93 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
             ),
             const SizedBox(height: 12),
             ProfilAltitudeChart(profil: trajet.profilAltitude),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ligne du trajet calcule entre deux etapes principales
+  /// (appui : profil ou edition du transfert).
+  Widget _buildLigneTrajet(Etape depart, Etape arrivee,
+      {required double indent}) {
+    final trajet = _trajetDepuis(depart);
+    return InkWell(
+      onTap: () {
+        if (trajet != null && trajet.mode.estAutoCalcule) {
+          _afficherProfilTrajet(trajet, depart, arrivee);
+        } else {
+          _modifierTransfert(depart, arrivee);
+        }
+      },
+      onLongPress: () => _modifierTransfert(depart, arrivee),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: indent,
+          bottom: 8,
+          top: 2,
+          right: 12,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              trajet != null
+                  ? _iconeMode(trajet.mode)
+                  : Icons.directions_car_outlined,
+              size: 16,
+              color: Colors.grey,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _libelleTrajet(trajet),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+            const Icon(Icons.edit, size: 14, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ligne de liaison estimee entre une visite et sa sous-etape, ou
+  /// entre deux sous-etapes consecutives.
+  Widget _buildLigneLiaison(Etape depart, Etape arrivee,
+      {required double indent}) {
+    final liaison = LiaisonSousEtape.estimer(
+      latDepart: depart.latitude,
+      lonDepart: depart.longitude,
+      latArrivee: arrivee.latitude,
+      lonArrivee: arrivee.longitude,
+      vitesseMarcheKmh: _vitesseMarcheKmh,
+    );
+    return Tooltip(
+      message: 'Estimation a vol d\'oiseau (+30 % de detour)',
+      child: Padding(
+        padding: EdgeInsets.only(left: indent, bottom: 4, right: 12),
+        child: Row(
+          children: [
+            Icon(
+              liaison.memeLieu
+                  ? Icons.place_outlined
+                  : (liaison.aPied
+                      ? Icons.directions_walk
+                      : Icons.directions_car_outlined),
+              size: 14,
+              color: Colors.grey,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                liaison.libelle(_formatDuree),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
           ],
         ),
       ),
