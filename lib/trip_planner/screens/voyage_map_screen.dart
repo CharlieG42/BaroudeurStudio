@@ -212,6 +212,9 @@ class _VoyageMapScreenState extends State<VoyageMapScreen> {
           nomInitial: nom,
           dateMinAutorisee: widget.voyage.dateDebut,
           dateMaxAutorisee: widget.voyage.dateFin,
+          // Permet de rattacher l'etape a une visite (sous-etape),
+          // comme le bouton + de la liste.
+          etapesVoyage: _etapes,
         ),
       ),
     );
